@@ -1,7 +1,7 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
  * Copyright 2007 University of Washington
- * 
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation;
@@ -23,6 +23,7 @@
 #include "ns3/event-id.h"
 #include "ns3/ptr.h"
 #include "ns3/address.h"
+#include "ns3/traced-callback.h"
 
 namespace ns3 {
 
@@ -30,7 +31,7 @@ class Socket;
 class Packet;
 
 /**
- * \ingroup applications 
+ * \ingroup applications
  * \defgroup udpecho UdpEcho
  */
 
@@ -40,7 +41,7 @@ class Packet;
  *
  * Every packet received is sent back.
  */
-class UdpEchoServer : public Application 
+class UdpEchoServer : public Application
 {
 public:
   /**
@@ -55,7 +56,6 @@ protected:
   virtual void DoDispose (void);
 
 private:
-
   virtual void StartApplication (void);
   virtual void StopApplication (void);
 
@@ -72,6 +72,8 @@ private:
   Ptr<Socket> m_socket; //!< IPv4 Socket
   Ptr<Socket> m_socket6; //!< IPv6 Socket
   Address m_local; //!< local multicast address
+
+  TracedCallback<Ptr<const Packet> > m_rxTrace;
 };
 
 } // namespace ns3

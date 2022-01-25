@@ -74,11 +74,24 @@ MapServerDdtHelper::Install (NodeContainer c) const
   return apps;
 }
 
+void
+MapServerDdtHelper::SetRtrAddress (Address rtr)
+{
+  m_rtrAddress = rtr;
+}
+
+Address
+MapServerDdtHelper::GetRtrAddress (void)
+{
+  return m_rtrAddress;
+}
+
 Ptr<Application> MapServerDdtHelper::InstallPriv (Ptr<Node> node) const
 {
   Ptr<LispOverIp> lisp = node->GetObject<LispOverIp>();
   NS_ASSERT_MSG (lisp != 0, "a MR must have one LispOverIp object! It is a lisp-speaking device!");
   Ptr<MapServerDdt> app = m_factory.Create<MapServerDdt> ();
+  app->SetRtrAddress (m_rtrAddress);
   node->AddApplication (app);
   // We tell MapResolverDdt the pointer to MapTables saved in lispOverIp
   app->SetMapTables (lisp->GetMapTablesV4 (), lisp->GetMapTablesV6 ());

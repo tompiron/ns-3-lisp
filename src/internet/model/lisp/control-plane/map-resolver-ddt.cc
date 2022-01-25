@@ -58,7 +58,7 @@ void MapResolverDdt::StartApplication (void)
 {
   NS_LOG_FUNCTION (this);
 
-  NS_LOG_DEBUG ("STARTING DDT MAP RESOLVER");
+  NS_LOG_DEBUG ("STARTING MR");
   if (m_socket == 0)
     {
       TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
@@ -70,7 +70,11 @@ void MapResolverDdt::StartApplication (void)
       TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
       m_mrClientSocket = Socket::CreateSocket (GetNode (), tid);
       InetSocketAddress local = InetSocketAddress (Ipv4Address::GetAny (), LispOverIp::LISP_SIG_PORT);
-      m_mrClientSocket->Bind (local);
+      if (m_mrClientSocket->Bind (local) == -1)
+        {
+          NS_LOG_DEBUG ("Failed to bind socket MR");
+          //NS_FATAL_ERROR ("Failed to bind socket MR");
+        }
     }
 
   if (m_mrClientSocket6 == 0)
@@ -83,12 +87,11 @@ void MapResolverDdt::StartApplication (void)
   m_mrClientSocket6->SetRecvCallback (MakeCallback (&MapResolverDdt::HandleReadFromClient, this));
   m_mrClientSocket->SetRecvCallback (MakeCallback (&MapResolverDdt::HandleReadFromClient, this));
 
-  NS_LOG_DEBUG ("APPLICATION STARTED");
+  NS_LOG_DEBUG ("MR APPLICATION STARTED");
 }
 
 void MapResolverDdt::HandleReadFromClient (Ptr<Socket> socket)
 {
-
   Ptr<Packet> packet;
   Address from;
 
@@ -96,7 +99,9 @@ void MapResolverDdt::HandleReadFromClient (Ptr<Socket> socket)
     {
       if (InetSocketAddress::IsMatchingType (from))
         {
-
+          NS_LOG_INFO ("At time " << Simulator::Now ().GetSeconds () << "s MR received " << packet->GetSize () << " bytes from " <<
+                       InetSocketAddress::ConvertFrom (from).GetIpv4 () << " port " <<
+                       InetSocketAddress::ConvertFrom (from).GetPort ());
         }
       else if (Inet6SocketAddress::IsMatchingType (from))
         {
@@ -108,7 +113,7 @@ void MapResolverDdt::HandleReadFromClient (Ptr<Socket> socket)
 
       if (msg_type == static_cast<uint8_t> (MapRequestMsg::GetMsgType ()))
         {
-          NS_LOG_DEBUG ("GET map request on map resolver and Forward it to Map Server!");
+          NS_LOG_DEBUG ("------- GET map request on map resolver and Forward it to Map Server!");
           Ptr<MapRequestMsg> mapReqMsg = MapRequestMsg::Deserialize (buf);
           SendMapRequest (mapReqMsg);
         }
@@ -153,11 +158,11 @@ void MapResolverDdt::SendMapRequest (Ptr<MapRequestMsg> mapRequestMsg)
   ConnectToPeerAddress (m_mapServerAddress, m_peerPort, m_socket);
   Ptr<Packet> p = Create<Packet> (buf, 64);
   m_socket->Send (p);
-  NS_LOG_DEBUG ("Map Request sent to Map-Server!");
 }
 
 void MapResolverDdt::HandleRead (Ptr<Socket> socket)
 {
+  NS_LOG_DEBUG ("--------------HandleRead MR");
   NS_LOG_FUNCTION (this);
 }
 

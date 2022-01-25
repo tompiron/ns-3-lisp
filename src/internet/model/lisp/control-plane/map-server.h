@@ -26,6 +26,8 @@
 #include "ns3/ptr.h"
 #include "ns3/traced-callback.h"
 #include "ns3/map-tables.h"
+#include "ns3/random-variable-stream.h"
+#include "ns3/pointer.h"
 
 namespace ns3 {
 
@@ -41,6 +43,9 @@ public:
 
   static TypeId GetTypeId (void);
 
+  virtual void SetRtrAddress (Address rtrAddress);
+  virtual Address GetRtrAddress (void);
+
 protected:
   void DoDispose (void);
   uint32_t m_sent;
@@ -52,6 +57,10 @@ protected:
   Ptr<Socket> m_socket; // socket to forward map request to ETR
   uint16_t m_peerPort;
   Address m_peerAddress; // address of the ETR (map request)
+
+  Address m_rtrAddress; // Address of an RTR
+
+  Ptr<RandomVariableStream> m_searchTimeVariable;
 
 private:
   virtual void StartApplication (void);

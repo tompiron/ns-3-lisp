@@ -27,6 +27,9 @@
 #include "ns3/packet.h"
 #include "ns3/uinteger.h"
 #include "ns3/lisp-over-ip.h"
+#include "ns3/double.h"
+#include "ns3/string.h"
+
 namespace ns3 {
 
 NS_LOG_COMPONENT_DEFINE ("MapServer");
@@ -51,6 +54,9 @@ MapServer::~MapServer ()
 
 TypeId MapServer::GetTypeId (void)
 {
+  //Ptr<ConstantRandomVariable> rvs = Create<ConstantRandomVariable> ();
+  //rvs->SetAttribute ("Constant", DoubleValue (1.0));
+
   static TypeId tid = TypeId ("ns3::MapServer")
     .SetParent<Application> ()
     .SetGroupName ("Lisp")
@@ -69,11 +75,30 @@ TypeId MapServer::GetTypeId (void)
     "Interval", "The time to wait between packets",
     TimeValue (Seconds (60.0)),
     MakeTimeAccessor (&MapServer::m_interval), MakeTimeChecker ())
+    .AddAttribute (
+    "SearchTimeVariable",
+    "The random variable which generates random delays for EID-RLOC mapping search time (before forwarding to ETR)",
+    StringValue ("ns3::ConstantRandomVariable[Constant=0.4]"),
+    //PointerValue(rvs),
+    MakePointerAccessor (&MapServer::m_searchTimeVariable),
+    MakePointerChecker<RandomVariableStream> ()
+    );
 
-  ;
   return tid;
 }
 
+void
+MapServer::SetRtrAddress (Address rtrAddress)
+{
+  m_rtrAddress = rtrAddress;
+}
+
+
+Address
+MapServer::GetRtrAddress (void)
+{
+  return m_rtrAddress;
+}
 
 void MapServer::DoDispose (void)
 {

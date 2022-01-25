@@ -33,6 +33,10 @@ public:
   void BuildMapTables (std::string localMapTablesConfigFilePath);
   void BuildMapTables2 (std::string localMapTablesConfigFilePath);
   void BuildRlocsSet (std::string rlocsListFilePath);
+  void SetPetrAddress (Address petrAddress);
+  void SetPitrs (NodeContainer c);
+  void SetPetrs (NodeContainer c);
+  void SetRtrs (NodeContainer c);
   void InstallMapTables (NodeContainer c);
   void Install (Ptr<Node> node) const;
   void Install (NodeContainer c) const;
@@ -47,6 +51,11 @@ private:
   std::map<Address, Ptr<LispStatistics> > m_lispStatisticsMapForV4;
   std::map<Address, Ptr<LispStatistics> > m_lispStatisticsMapForV6;
   std::set<Address> m_rlocsList;
+  Address m_petrAddress;
+  std::vector<uint32_t> m_pitrs; //!< Vector containing identifier of all PETRs nodes
+  std::vector<uint32_t> m_petrs; //!< Vector containing identifier of all PITRs nodes
+  std::vector<uint32_t> m_rtrs; //!< Vector containing identifier of all RTRs nodes
+
 };
 
 } /* namespace ns3 */

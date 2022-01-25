@@ -67,6 +67,7 @@ public:
     No_Mapping = 0,//!< No_Mapping
     Mapping_Exist, //!< Mapping_Exist
     No_Need_Encap, //!< No_Need_Encap
+    Not_Registered, //!< Not_Registered
   };
 
   /**
@@ -85,7 +86,8 @@ public:
   virtual void LispOutput (Ptr<Packet> packet, Ipv4Header const &innerHeader,
                            Ptr<const MapEntry> localMapping,
                            Ptr<const MapEntry> remoteMapping,
-                           Ptr<Ipv4Route> lispRoute) = 0;
+                           Ptr<Ipv4Route> lispRoute,
+                           LispOverIp::EcmEncapsulation ecm) = 0;
 
   /**
    * \brief Process incoming LISP packets
@@ -97,7 +99,7 @@ public:
    * \param packet
    * \param outerHeader
    */
-  virtual void LispInput (Ptr<Packet> packet, Ipv4Header const &outerHeader) = 0;
+  virtual void LispInput (Ptr<Packet> packet, Ipv4Header const &outerHeader, bool lisp) = 0;
 
   // NB we give references of pointer because we want pointers to be modified
   /**
@@ -126,7 +128,11 @@ public:
    * @param ipHeader
    * @return
    */
-  virtual bool NeedDecapsulation (Ptr<const Packet> packet, Ipv4Header const &ipHeader) = 0;
+  virtual bool NeedDecapsulation (Ptr<const Packet> packet, Ipv4Header const &ipHeader, uint16_t lispPort) = 0;
+
+  virtual bool IsMapNotifyForNatedXtr (Ptr<Packet> packet, Ipv4Header const &ipHeader, Ptr<MapEntry>  &mapEntry) = 0;
+
+  virtual bool IsMapRequestForNatedXtr (Ptr<Packet> packet, Ipv4Header const &ipHeader, Ptr<MapEntry>  &mapEntry) = 0;
 
   /**
    *
@@ -135,8 +141,13 @@ public:
    * @param udpSrcPort
    * @return
    */
-  virtual Ptr<Packet> LispEncapsulate (Ptr<Packet> packet, uint16_t udpLength, uint16_t udpSrcPort) = 0;
+  virtual Ptr<Packet> LispEncapsulate (Ptr<Packet> packet, uint16_t udpLength, uint16_t udpSrcPort, uint16_t udpDstPort) = 0;
 
+  virtual void SetNatedEntry (Ptr<Packet> packet, Ipv4Header const &outerHeader) = 0;
+
+  virtual bool IsMapRegister (Ptr<Packet> packet) = 0;
+
+  virtual void ChangeItrRloc (Ptr<Packet> &packet, Address address) = 0;
   /**
    *
    * @param currentDevice
@@ -145,7 +156,7 @@ public:
    */
   void RecordReceiveParams (Ptr<NetDevice> currentDevice, uint16_t protocol, NetDevice::PacketType packetType);
 
-protected:
+//protected:
   /*
    * Reception parameters
    */

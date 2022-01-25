@@ -37,7 +37,7 @@ public:
   ~LispOverIpv6Impl ();
 
   Ptr<Packet>
-  LispEncapsulate (Ptr<Packet> packet, uint16_t udpLength, uint16_t udpSrcPort);
+  LispEncapsulate (Ptr<Packet> packet, uint16_t udpLength, uint16_t udpSrcPort, uint16_t udpDstPort);
 
   LispOverIpv4::MapStatus IsMapForEncapsulation (Ptr<const Packet> p, Ptr<MapEntry> srcMapEntry, Ptr<MapEntry> destMapEntry) const;
 };

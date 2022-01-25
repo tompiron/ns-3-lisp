@@ -260,11 +260,28 @@ def build(bld):
         'model/lisp/control-plane/map-reply-record.cc',
         'model/lisp/control-plane/map-request-msg.cc',
         'model/lisp/control-plane/map-request-record.cc',
+        'model/lisp/control-plane/info-request-msg.cc',
+        'model/lisp/control-plane/nat-lcaf.cc',
+        'model/lisp/control-plane/lisp-encapsulated-control-msg-header.cc',
         # lisp helper
         'helper/lisp-helper/lisp-helper.cc',
         'helper/lisp-helper/map-resolver-helper.cc',
         'helper/lisp-helper/map-server-helper.cc',
-        'helper/lisp-helper/lisp-etr-itr-app-helper.cc'
+        'helper/lisp-helper/lisp-etr-itr-app-helper.cc',
+        'helper/lisp-helper/lisp-mn-helper.cc',
+        # NAT
+        'model/tcp-conntrack-l4-protocol.cc',
+        'model/udp-conntrack-l4-protocol.cc',
+        'model/netfilter-conntrack-tuple.cc',
+        'model/ipv4-netfilter-hook.cc',
+        'model/ip-conntrack-info.cc',
+        'model/icmpv4-conntrack-l4-protocol.cc',
+        'model/ipv4-conntrack-l3-protocol.cc',
+        'model/netfilter-callback-chain.cc',
+        'model/ipv4-nat.cc',
+        'model/ipv4-netfilter.cc',
+        # NAT helper
+        'helper/ipv4-nat-helper.cc',
         ]
 
     internet_test = bld.create_ns3_module_test_library('internet')
@@ -327,7 +344,20 @@ def build(bld):
         'test/tcp-datasentcb-test.cc',
         'test/ipv4-rip-test.cc',
          # lisp
-        'test/lisp-test/lisp-test-suite.cc',
+        'test/lisp-test/simple-lisp/simple-lisp-test-suite.cc',
+        'test/lisp-test/mn-lisp/mn-test-suite.cc',
+        'test/lisp-test/xtr-behind-nat/xtr-behind-nat-test-suite.cc',
+        'test/lisp-test/pxtrs/pxtrs-test-suite.cc',
+        'test/lisp-test/mn-behind-xtr/mn-behind-xtr-test-suite.cc',
+        'test/lisp-test/mn-behind-nat/mn-behind-nat-test-suite.cc',
+        'test/lisp-test/simple-handover/simple-handover-test-suite.cc',
+        'test/lisp-test/non-lisp-nat-handover/non-lisp-nat-handover-test-suite.cc',
+        'test/lisp-test/lisp-nat-proxy-handover/lisp-nat-proxy-handover-test-suite.cc',
+        'test/lisp-test/nat-non-lisp-proxy-handover/nat-non-lisp-proxy-handover-test-suite.cc',
+        'test/lisp-test/non-lisp-lisp-proxy-handover/non-lisp-lisp-proxy-handover-test-suite.cc',
+        # NAT
+        'test/ipv4-netfilter-test.cc',
+        'test/ipv4-nat-test-suite.cc',
         
         ]
     privateheaders = bld(features='ns3privateheader')
@@ -479,11 +509,32 @@ def build(bld):
         'model/lisp/control-plane/map-reply-record.h',
         'model/lisp/control-plane/map-request-msg.h',
         'model/lisp/control-plane/map-request-record.h',
+        'model/lisp/control-plane/info-request-msg.h',
+        'model/lisp/control-plane/nat-lcaf.h',
+        'model/lisp/control-plane/lisp-encapsulated-control-msg-header.h',
         # lisp helper
         'helper/lisp-helper/lisp-helper.h',
         'helper/lisp-helper/map-resolver-helper.h',
         'helper/lisp-helper/map-server-helper.h',
-        'helper/lisp-helper/lisp-etr-itr-app-helper.h'
+        'helper/lisp-helper/lisp-etr-itr-app-helper.h',
+        'helper/lisp-helper/lisp-mn-helper.h',
+        # NAT
+        'model/sgi-hashmap.h',
+        'model/tcp-conntrack-l4-protocol.h',
+        'model/udp-conntrack-l4-protocol.h',
+        'model/netfilter-conntrack-tuple.h',
+        'model/netfilter-conntrack-l4-protocol.h',
+        'model/ipv4-netfilter-hook.h',
+        'model/ip-conntrack-info.h',
+        'model/icmpv4-conntrack-l4-protocol.h',
+        'model/ipv4-conntrack-l3-protocol.h',
+        'model/netfilter-callback-chain.h',
+        'model/netfilter-conntrack-l3-protocol.h',
+        'model/netfilter-tuple-hash.h',
+        'model/ipv4-nat.h',
+        'model/ipv4-netfilter.h',
+        # NAT helper
+        'helper/ipv4-nat-helper.h',
        ]
 
     if bld.env['NSC_ENABLED']:

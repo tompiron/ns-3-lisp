@@ -42,14 +42,30 @@ MapServerDdt::GetTypeId (void)
   static TypeId tid = TypeId ("ns3::MapServerDdt")
     .SetParent<MapServer> ()
     .SetGroupName ("Lisp")
-    .AddConstructor<MapServerDdt> ()
-    .AddAttribute (
-    "SearchTime",
-    "Time to search EID-RLOC mapping before forwarding received map request",
-    TimeValue (Seconds (1.0)),
-    MakeTimeAccessor (&MapServerDdt::m_searchTime), MakeTimeChecker ()
-    );
+    .AddConstructor<MapServerDdt> ();
   return tid;
+}
+
+
+Ptr<RandomVariableStream>
+MapServerDdt::GetMdsModel (void)
+{
+  Ptr<EmpiricalRandomVariable> mds = CreateObject<EmpiricalRandomVariable> ();
+  mds->CDF ( 0.0,  0.0);
+  mds->CDF ( 0.05,  0.1);
+  mds->CDF ( 0.10,  0.2);
+  mds->CDF ( 0.12,  0.3);
+  mds->CDF ( 0.18,  0.4);
+  mds->CDF ( 0.20,  0.5);
+  mds->CDF ( 0.23,  0.6);
+  mds->CDF ( 0.26,  0.7);
+  mds->CDF ( 0.30,  0.8);
+  mds->CDF ( 0.50,  0.9);
+  mds->CDF ( 1.0, 0.98);
+  mds->CDF ( 1.5, 0.999);
+  mds->CDF (2.0,  1.0);
+
+  return mds;
 }
 
 MapServerDdt::MapServerDdt ()
@@ -94,7 +110,7 @@ MapServerDdt::StartApplication (void)
 {
   NS_LOG_FUNCTION (this);
 
-  NS_LOG_DEBUG ("STARTING DDT MAP SERVER");
+  NS_LOG_DEBUG ("STARTING MS");
   if (m_socket == 0)
     {
       TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
@@ -316,22 +332,64 @@ MapServerDdt::HandleReadFromClient (Ptr<Socket> socket)
           if (entry == 0)
             {
               NS_LOG_DEBUG ("Send Negative Map-Reply");
+              MapResolver::ConnectToPeerAddress (
+                requestMsg->GetItrRlocAddrIp (), m_peerPort, m_socket);
+
+              Ptr<MapReplyMsg> mapReply = GenerateNegMapReply (requestMsg);
+              uint8_t newBuf[256];
+              mapReply->Serialize (newBuf);
+              Ptr<Packet> reactedPacket = Create<Packet> (newBuf, 256);
+              Simulator::Schedule (Seconds (m_searchTimeVariable->GetValue ()), &MapServerDdt::Send, this, reactedPacket);
             }
           else
             {
-              Ptr<Locator> locator =
-                entry->GetLocators ()->SelectFirsValidRloc ();
-              NS_LOG_DEBUG (
-                "Forward Map-Request to ETR " << Ipv4Address::ConvertFrom (locator->GetRlocAddress ()));
+              Ptr<Locator> locator = entry->GetLocators ()->SelectFirsValidRloc ();
+              NS_LOG_DEBUG ("Forward Map-Request to ETR " << Ipv4Address::ConvertFrom (locator->GetRlocAddress ()));
               MapResolver::ConnectToPeerAddress (locator->GetRlocAddress (),
                                                  m_peerPort, m_socket);
               Ptr<Packet> reqPacket = Create<Packet> (buf,
                                                       packet->GetSize ());
-              Simulator::Schedule (m_searchTime, &MapServerDdt::Send, this, reqPacket);
-
-//		Send (reqPacket);
+              Simulator::Schedule (Seconds (m_searchTimeVariable->GetValue ()), &MapServerDdt::Send, this, reqPacket);
             }
+        }
+      else if (msg_type
+               == static_cast<uint8_t> (InfoRequestMsg::GetMsgType ()))
+        {
+          //socket->GetPeerName (addr);
 
+          // Get Global address and port of peer
+          InetSocketAddress iaddr = InetSocketAddress::ConvertFrom (from);
+          NS_LOG_DEBUG ("Receive InfoRequest Msg from " << iaddr.GetIpv4 () << ":" << iaddr.GetPort ());
+
+          /*
+         Get own locator through MapTables :
+         Assumption: there is a unique eid space and a unique locator in database, or several
+         eid space but all under the same RLOC
+        */
+          Ptr<LispOverIpv4> lispOverIpv4 = GetNode ()->GetObject<LispOverIpv4> ();
+          Ptr<MapTables> mapTables = lispOverIpv4->GetMapTablesV4 ();
+          std::list<Ptr<MapEntry> > entryList;
+          mapTables->GetMapEntryList (MapTables::IN_DATABASE, entryList);
+          Ptr<MapEntry> mapEntry = entryList.front ();
+          Address maddr = mapEntry->RlocSelection ()->GetRlocAddress ();
+
+          //Alternative: (might be useful in another case)
+          /*
+        Address eid = mapEntry->GetEidPrefix ()-> GetEidAddress ();
+        Ptr<Locator> destLoc = Create<Locator> (iaddr.GetIpv4 ());
+        Ptr<Locator> loc = lispOverIpv4->SelectSourceRloc(eid, destLoc);
+        Address maddr = loc->GetRlocAddress ();
+        */
+
+          // Generate InfoReplyMsg
+          Ptr<InfoRequestMsg> msg = InfoRequestMsg::Deserialize (buf);
+          Ptr<InfoRequestMsg> infoReply = GenerateInfoReplyMsg (msg, iaddr.GetPort (), iaddr.GetIpv4 (), maddr);
+
+          uint8_t BUF_SIZE = 16 + infoReply->GetAuthDataLen () + 20 + infoReply->GetNatLcaf ()->GetLength ();
+          uint8_t *newBuf = new uint8_t[BUF_SIZE];
+          infoReply->Serialize (newBuf);
+          Ptr<Packet> reactedPacket = Create<Packet> (newBuf, BUF_SIZE);
+          socket->SendTo (reactedPacket, 0, from);
         }
       else
         {
@@ -339,6 +397,66 @@ MapServerDdt::HandleReadFromClient (Ptr<Socket> socket)
             "Unknown Control Message Type!!! Program should be stopped...");
         }
     }
+}
+
+Ptr<MapReplyMsg>
+MapServerDdt::GenerateNegMapReply (Ptr<MapRequestMsg> requestMsg)
+{
+  Ptr<MapReplyMsg> mapReply = Create<MapReplyMsg>();
+  mapReply->SetNonce (requestMsg->GetNonce ());
+  mapReply->SetRecordCount (1);
+
+  // Record (with no locators)
+  Ptr<MapReplyRecord> replyRecord = Create<MapReplyRecord>();
+  replyRecord->SetRecordTtl (MapReplyRecord::m_defaultRecordTtl);
+  replyRecord->SetAct (MapReplyRecord::NoAction);
+  replyRecord->SetA (1);
+  replyRecord->SetMapVersionNumber (0);              //No map version number
+  replyRecord->SetEidPrefix (requestMsg->GetMapRequestRecord ()->GetEidPrefix ());            //Also set eid-prefix AFI
+  replyRecord->SetEidMaskLength (32);
+  Ptr<Locators> locators;
+  replyRecord->SetLocators (locators);
+
+  mapReply->SetRecord (replyRecord);
+
+  return mapReply;
+}
+
+Ptr<InfoRequestMsg>
+MapServerDdt::GenerateInfoReplyMsg (Ptr<InfoRequestMsg> msg, uint16_t etrUdpPort, Address etrAddress, Address msAddress)
+{
+
+  Ptr<InfoRequestMsg> infoReply = Create<InfoRequestMsg> ();
+  // All fields same as received InfoRequest
+  infoReply->SetR (0x01);
+  infoReply->SetNonce (msg->GetNonce ());
+  infoReply->SetAuthDataLen (msg->GetAuthDataLen ());
+  infoReply->SetAuthData (msg->GetAuthData ());
+  infoReply->SetKeyId (msg->GetKeyId ());
+  infoReply->SetTtl (msg->GetTtl ());
+  infoReply->SetEidMaskLength (msg->GetEidMaskLength ());
+  infoReply->SetEidPrefixAfi (msg->GetEidPrefixAfi ());
+  infoReply->SetEidPrefix (msg->GetEidPrefix ());
+
+  // Generate NatLcaf part
+  Ptr<NatLcaf> natLcaf = Create<NatLcaf> ();
+  if (GetRtrAddress ().IsInvalid ())
+    {
+      natLcaf->SetRtrRlocAddress (Ipv4Address ("0.0.0.0"));
+    }
+  else
+    {
+      natLcaf->SetRtrRlocAddress (GetRtrAddress ());
+    }
+  natLcaf->SetGlobalEtrRlocAddress (etrAddress);
+  natLcaf->SetEtrUdpPort (etrUdpPort);
+  natLcaf->SetMsRlocAddress (msAddress);
+  natLcaf->SetPrivateEtrRlocAddress (Ipv4Address ("0.0.0.0"));
+  natLcaf->ComputeLength ();
+
+  infoReply->SetNatLcaf (natLcaf);
+  return infoReply;
+
 }
 
 } /* namespace ns3 */

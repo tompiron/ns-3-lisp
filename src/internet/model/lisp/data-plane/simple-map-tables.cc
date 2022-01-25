@@ -130,6 +130,7 @@ Ptr<MapEntry> SimpleMapTables::DatabaseLookup (const Address &eidAddress)
   // TODO Turn eidAddress in prefix
   NS_LOG_FUNCTION (this);
   Ptr<EndpointId> eid = Create<EndpointId> (eidAddress);
+
   std::map<Ptr<EndpointId>, Ptr<MapEntry>, CompareEndpointId>::iterator it =
     m_mappingDatabase.find (eid);
 
@@ -137,11 +138,12 @@ Ptr<MapEntry> SimpleMapTables::DatabaseLookup (const Address &eidAddress)
     {
       Ptr<MapEntry> entry = m_mappingDatabase.at (eid);
       MapTables::DbHit ();
-      NS_LOG_DEBUG ("The found Mapping entry for EID: " << eidAddress << "\n" << entry->GetEidPrefix ());
       return entry;
     }
+
   MapTables::DbMiss ();
   return 0;
+
 }
 
 Ptr<MapEntry> SimpleMapTables::CacheLookup (const Address &eidAddress)
@@ -150,16 +152,39 @@ Ptr<MapEntry> SimpleMapTables::CacheLookup (const Address &eidAddress)
   NS_LOG_FUNCTION (this);
   Ptr<EndpointId> eid = Create<EndpointId> (eidAddress);
   NS_LOG_DEBUG ("Searching in Cache Database for EID:" << eid->GetEidAddress ());
+
   if (m_mappingCache.find (eid) != m_mappingCache.end ())
     {
       MapTables::CacheHit ();
       NS_LOG_DEBUG ("Find mapping in Cache for EID:" << eid->GetEidAddress ());
       return m_mappingCache.at (eid);
     }
+
   NS_LOG_DEBUG ("No search result in Cache Database for EID:" << eid->GetEidAddress ());
   MapTables::CacheMiss ();
   return 0;
+
   // TODO investigate lock and unlock
+}
+
+void
+SimpleMapTables::DatabaseDelete (const Address &eidAddress)
+{
+  Ptr<EndpointId> eid = Create<EndpointId> (eidAddress);
+  m_mappingDatabase.erase (eid);
+}
+
+void
+SimpleMapTables::CacheDelete (const Address &eidAddress)
+{
+  Ptr<EndpointId> eid = Create<EndpointId> (eidAddress);
+  m_mappingCache.erase (eid);
+}
+
+void
+SimpleMapTables::WipeCache (void)
+{
+  m_mappingCache.clear ();
 }
 
 
@@ -469,13 +494,42 @@ Ptr<Locator> SimpleMapTables::SourceRlocSelection (Address const &srcEid,
 
   // Get the mapping entry corresponding to the EID in the db
   Ptr<MapEntry> srcEidMapEntry = DatabaseLookup (srcEid);
-
-  if (srcEidMapEntry != 0)
+  bool pitr = MapTables::GetLispOverIp ()->GetPitr ();      //Check if device is a PITR
+  bool rtr = MapTables::GetLispOverIp ()->IsRtr ();      // Check if device is an RTR
+  if (srcEidMapEntry != 0 || pitr || rtr)
     {
-      Ptr<Locators> locs = srcEidMapEntry->GetLocators ();
-      NS_LOG_DEBUG ("Pointer to the list of Locators: " << locs);
-      // we look for an RLOC address that corresponds to the output ifAddress
-      srcLocator = locs->FindLocator (srcAddress);
+      if (pitr || rtr)
+        {
+          srcLocator = Create<Locator> (srcAddress);
+          Ptr<RlocMetrics> rlocMetrics = Create<RlocMetrics> ();
+          rlocMetrics->SetPriority (200);
+          rlocMetrics->SetWeight (0);
+          rlocMetrics->SetMtu (1500);
+          rlocMetrics->SetUp (true);
+          rlocMetrics->SetIsLocalIf (true);
+          if (Ipv4Address::IsMatchingType (srcAddress))
+            {
+              rlocMetrics->SetLocAfi (RlocMetrics::IPv4);
+            }
+          else if (Ipv6Address::IsMatchingType (srcAddress))
+            {
+              rlocMetrics->SetLocAfi (RlocMetrics::IPv6);
+            }
+          else
+            {
+              NS_LOG_ERROR ("Unknown AFI");
+            }
+
+          srcLocator->SetRlocMetrics (rlocMetrics);
+
+        }
+      else
+        {
+          Ptr<Locators> locs = srcEidMapEntry->GetLocators ();
+          NS_LOG_DEBUG ("Pointer to the list of Locators: " << locs);
+          // we look for an RLOC address that corresponds to the output ifAddress
+          srcLocator = locs->FindLocator (srcAddress);
+        }
 
       if (!srcLocator)
         {
@@ -517,8 +571,7 @@ Ptr<Locator> SimpleMapTables::SourceRlocSelection (Address const &srcEid,
       return srcLocator;
     }
 
-
-  NS_LOG_LOGIC ("No source locator found for source Address");
+  NS_LOG_DEBUG ("No source locator found for source Address");
   return 0;
 }
 
@@ -580,6 +633,7 @@ bool SimpleMapTables::IsMapForReceivedPacket (Ptr<const Packet> p,
          *
          * Any it is a good solution to counting local mapping miss here?
          */
+      NS_LOG_DEBUG ("No localMapEntry");
       lispOverIp->GetLispStatisticsV4 ()->NoLocalMap ();
       return false;
     }
@@ -593,6 +647,7 @@ bool SimpleMapTables::IsMapForReceivedPacket (Ptr<const Packet> p,
          *  this should not happen
          *  TODO DROP packet
          */
+      NS_LOG_DEBUG ("No RLOC in localMapEntry");
       lispOverIp->GetLispStatisticsV4 ()->NoLocalMap ();
       return false;
     }
@@ -609,11 +664,11 @@ bool SimpleMapTables::IsMapForReceivedPacket (Ptr<const Packet> p,
           /*
          * The entry exists in the cache but the
          * RLOC address of the remote ETR doesn't
-         * We should notify through socket or not
-         * TODO Drop Packet;
+         * This means that we are facing non-LISP traffic
          */
+          NS_LOG_DEBUG ("No srcLocator in remoteMapEntry");
           lispOverIp->GetLispStatisticsV4 ()->NoLocalMap ();
-          return false;
+          return true;               //We don't go to ::CheckLispHeader()
         }
     }
   else

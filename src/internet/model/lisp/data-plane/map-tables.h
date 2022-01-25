@@ -19,6 +19,7 @@
 
 
 namespace ns3 {
+
 /**
  * We encounter a cyclic reference situation between xTR application and map table here.
  * We use forward declaration to break the cycle.
@@ -38,6 +39,12 @@ public:
   virtual Ptr<MapEntry> DatabaseLookup (const Address &eid) = 0;
 
   virtual Ptr<MapEntry> CacheLookup (const Address &eid) = 0;
+
+  virtual void DatabaseDelete (const Address &eid) = 0;
+
+  virtual void CacheDelete (const Address &eid) = 0;
+
+  virtual void WipeCache () = 0;
 
   virtual int GetNMapEntries (void) = 0;
   /**
@@ -113,6 +120,11 @@ public:
         {
           if (b->GetIpv4Mask ().IsEqual (Ipv4Mask ()))
             {
+              /*printf ("lhs: " << Ipv4Address::ConvertFrom (a->GetEidAddress ()).CombineMask (
+                                        a->GetIpv4Mask ()).Get ());
+                                printf ("rhs: " << Ipv4Address::ConvertFrom (b->GetEidAddress ()).CombineMask (
+                                                a->GetIpv4Mask ()).Get ());*/
+
               if (Ipv4Address::ConvertFrom (a->GetEidAddress ()).CombineMask (
                     a->GetIpv4Mask ()).Get ()
                   > Ipv4Address::ConvertFrom (b->GetEidAddress ()).CombineMask (

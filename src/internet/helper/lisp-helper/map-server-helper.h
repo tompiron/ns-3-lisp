@@ -81,6 +81,9 @@ public:
   ApplicationContainer
   Install (NodeContainer c) const;
 
+  void SetRtrAddress (Address rtr);
+  Address GetRtrAddress (void);
+
 private:
   /**
    * Install an ns3::UdpEchoServer on the node configured with all the
@@ -92,6 +95,7 @@ private:
   Ptr<Application> InstallPriv (Ptr<Node> node) const;
 
   ObjectFactory m_factory; //!<Object factory
+  Address m_rtrAddress; // Address of the configured RTR
 };
 
 } /* namespace ns3 */

@@ -27,6 +27,7 @@
 #include <stdint.h>
 #include "ns3/ipv4-address.h"
 #include "ns3/ptr.h"
+#include "ns3/udp-header.h"
 #include "ns3/net-device.h"
 #include "ns3/ipv4.h"
 #include "ns3/traced-callback.h"
@@ -51,12 +52,13 @@ class Socket;
 class Ipv4RawSocketImpl;
 class IpL4Protocol;
 class Icmpv4L4Protocol;
+class Ipv4Netfilter;
 
 /**
  * \ingroup ipv4
  *
  * \brief Implement the IPv4 layer.
- * 
+ *
  * This is the actual implementation of IP.  It contains APIs to send and
  * receive packets at the IP layer, as well as APIs for IP routing.
  *
@@ -87,21 +89,22 @@ public:
   static TypeId GetTypeId (void);
   static const uint16_t PROT_NUMBER; //!< Protocol number (0x0800)
 
-  Ipv4L3Protocol();
+  Ipv4L3Protocol ();
   virtual ~Ipv4L3Protocol ();
 
   /**
    * \enum DropReason
    * \brief Reason why a packet has been dropped.
    */
-  enum DropReason 
+  enum DropReason
   {
     DROP_TTL_EXPIRED = 1,   /**< Packet TTL has expired */
     DROP_NO_ROUTE,   /**< No route to host */
     DROP_BAD_CHECKSUM,   /**< Bad checksum */
     DROP_INTERFACE_DOWN,   /**< Interface is down so can not send packet */
     DROP_ROUTE_ERROR,   /**< Route error */
-    DROP_FRAGMENT_TIMEOUT /**< Fragment timeout exceeded */
+    DROP_FRAGMENT_TIMEOUT, /**< Fragment timeout exceeded */
+    DROP_NETFILTER, /**< Netfilter processing dropped packet */
   };
 
   /**
@@ -114,6 +117,9 @@ public:
 
   void SetRoutingProtocol (Ptr<Ipv4RoutingProtocol> routingProtocol);
   Ptr<Ipv4RoutingProtocol> GetRoutingProtocol (void) const;
+
+  void SetNetfilter (Ptr<Ipv4Netfilter> netfilter);
+  Ptr<Ipv4Netfilter> GetNetfilter (void) const;
 
   Ptr<Socket> CreateRawSocket (void);
   void DeleteRawSocket (Ptr<Socket> socket);
@@ -163,7 +169,7 @@ public:
    * Higher-level layers call this method to send a packet
    * down the stack to the MAC and PHY layers.
    */
-  void Send (Ptr<Packet> packet, Ipv4Address source, 
+  void Send (Ptr<Packet> packet, Ipv4Address source,
              Ipv4Address destination, uint8_t protocol, Ptr<Ipv4Route> route);
   /**
    * \param packet packet to send
@@ -228,9 +234,8 @@ public:
    * \param [in] packet The packet.
    * \param [in] interface
    */
-  typedef void (* SentTracedCallback)
-    (const Ipv4Header & header, Ptr<const Packet> packet, uint32_t interface);
-   
+  typedef void (* SentTracedCallback)(const Ipv4Header & header, Ptr<const Packet> packet, uint32_t interface);
+
   /**
    * TracedCallback signature for packet transmission or reception events.
    *
@@ -241,8 +246,7 @@ public:
    * \deprecated The non-const \c Ptr<Ipv4> argument is deprecated
    * and will be changed to \c Ptr<const Ipv4> in a future release.
    */
-  typedef void (* TxRxTracedCallback)
-    (Ptr<const Packet> packet, Ptr<Ipv4> ipv4, uint32_t interface);
+  typedef void (* TxRxTracedCallback)(Ptr<const Packet> packet, Ptr<Ipv4> ipv4, uint32_t interface);
 
   /**
    * TracedCallback signature for packet drop events.
@@ -255,13 +259,11 @@ public:
    * \deprecated The non-const \c Ptr<Ipv4> argument is deprecated
    * and will be changed to \c Ptr<const Ipv4> in a future release.
    */
-  typedef void (* DropTracedCallback)
-    (const Ipv4Header & header, Ptr<const Packet> packet,
-     DropReason reason, Ptr<Ipv4> ipv4,
-     uint32_t interface);
-   
-protected:
+  typedef void (* DropTracedCallback)(const Ipv4Header & header, Ptr<const Packet> packet,
+                                      DropReason reason, Ptr<Ipv4> ipv4,
+                                      uint32_t interface);
 
+protected:
   virtual void DoDispose (void);
   /**
    * This function will notify other components connected to the node that a new stack member is now connected
@@ -280,7 +282,7 @@ private:
    *
    * Defined but not implemented to avoid misuse
    */
-  Ipv4L3Protocol(const Ipv4L3Protocol &);
+  Ipv4L3Protocol (const Ipv4L3Protocol &);
 
   /**
    * \brief Copy constructor.
@@ -325,7 +327,7 @@ private:
   void
   SendRealOut (Ptr<Ipv4Route> route,
                Ptr<Packet> packet,
-               Ipv4Header const &ipHeader);
+               Ipv4Header &ipHeader);
 
   /**
    * \brief Forward a packet.
@@ -333,9 +335,9 @@ private:
    * \param p packet to forward
    * \param header IPv4 header to add to the packet
    */
-  void 
-  IpForward (Ptr<Ipv4Route> rtentry, 
-             Ptr<const Packet> p, 
+  void
+  IpForward (Ptr<Ipv4Route> rtentry,
+             Ptr<const Packet> p,
              const Ipv4Header &header);
 
   /**
@@ -345,8 +347,8 @@ private:
    * \param header IPv4 header to add to the packet
    */
   void
-  IpMulticastForward (Ptr<Ipv4MulticastRoute> mrtentry, 
-                      Ptr<const Packet> p, 
+  IpMulticastForward (Ptr<Ipv4MulticastRoute> mrtentry,
+                      Ptr<const Packet> p,
                       const Ipv4Header &header);
 
   /**
@@ -489,7 +491,7 @@ private:
   TracedCallback<const Ipv4Header &, Ptr<const Packet>, DropReason, Ptr<Ipv4>, uint32_t> m_dropTrace;
 
   Ptr<Ipv4RoutingProtocol> m_routingProtocol; //!< Routing protocol associated with the stack
-
+  Ptr<Ipv4Netfilter> m_netfilter;
   SocketList m_sockets; //!< List of IPv4 raw sockets.
 
   /**

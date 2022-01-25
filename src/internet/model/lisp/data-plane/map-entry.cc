@@ -24,6 +24,7 @@ MapEntry::MapEntry ()
   m_rlocsStatusBits = 0;
   m_isNegative = 0;
   m_isExpired = 0;
+  m_port = 0;
 }
 
 MapEntry::~MapEntry ()
@@ -100,9 +101,46 @@ void MapEntry::SetEidPrefix (Ptr<EndpointId> prefix)
 {
   m_eidPrefix = prefix;
 }
-Ptr<EndpointId> MapEntry::GetEidPrefix (void)
+Ptr<EndpointId> MapEntry::GetEidPrefix (void) const
 {
   return m_eidPrefix;
+}
+
+void
+MapEntry::SetTranslatedPort (uint16_t port)
+{
+  m_port = port;
+}
+uint16_t
+MapEntry::GetTranslatedPort (void) const
+{
+  return m_port;
+}
+void
+MapEntry::SetRtrRloc (Ptr<Locator> rloc)
+{
+  m_rtrRloc = rloc;
+}
+Ptr<Locator>
+MapEntry::GetRtrRloc (void) const
+{
+  return m_rtrRloc;
+}
+void
+MapEntry::SetXtrLloc (Ptr<Locator> rloc)
+{
+  m_xTRLocalRloc = rloc;
+}
+Ptr<Locator>
+MapEntry::GetXtrLloc (void) const
+{
+  return m_xTRLocalRloc;
+}
+
+bool
+MapEntry::IsNatedEntry (void) const
+{
+  return m_port != 0;
 }
 
 } /* namespace ns3 */

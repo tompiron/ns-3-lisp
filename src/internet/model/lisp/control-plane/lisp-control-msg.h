@@ -42,6 +42,7 @@ public:
     MAP_REGISTER = 0x03,
     MAP_NOTIFY = 0x04,
     MAP_REFERRAL = 0x06,
+    INFO_REQUEST = 0x07,
     MAP_ENCAP_CONTROL_MSG = 0x08,
   };
 

@@ -19,7 +19,7 @@
 #include "ns3/ptr.h"
 #include "simple-map-tables.h"
 #include <ns3/ipv4-l3-protocol.h>
-
+#include "rloc-metrics.h"
 #include "lisp-over-ip.h"
 #include "lisp-mapping-socket.h"
 
@@ -58,13 +58,15 @@ LispOverIpv4Impl::~LispOverIpv4Impl ()
 void LispOverIpv4Impl::LispOutput (Ptr<Packet> packet, Ipv4Header const &innerHeader,
                                    Ptr<const MapEntry> localMapping,
                                    Ptr<const MapEntry> remoteMapping,
-                                   Ptr<Ipv4Route> lispRoute)
+                                   Ptr<Ipv4Route> lispRoute,
+                                   LispOverIp::EcmEncapsulation ecm)
 {
 
   NS_LOG_FUNCTION (this);
   Ptr<Locator> destLocator = 0;
   Ptr<Locator> srcLocator = 0;
   uint16_t udpSrcPort;
+  uint16_t udpDstPort;
 
   // headers
   Ipv4Header outerHeader;
@@ -86,8 +88,48 @@ void LispOverIpv4Impl::LispOutput (Ptr<Packet> packet, Ipv4Header const &innerHe
   // NB. ns3 does not compute checksum by default
 
   // Select a destination Rloc if no drop packet
-  destLocator = SelectDestinationRloc (remoteMapping);
-  NS_LOG_DEBUG ("Destination RLOC address: " << destLocator->GetRlocAddress ());
+
+  if (remoteMapping->IsNegative ())
+    {
+      // Packet destined to non-LISP site -> Encapsulate towards PETR if PETR configured
+      Address petrAddress = GetPetrAddress ();
+      if (!petrAddress.IsInvalid ())
+        {
+          NS_LOG_DEBUG ("PETR configured");
+          destLocator = Create<Locator> (petrAddress);
+          Ptr<RlocMetrics> rlocMetrics = Create<RlocMetrics> ();
+          rlocMetrics->SetPriority (200);
+          rlocMetrics->SetWeight (0);
+          rlocMetrics->SetMtu (1500);
+          rlocMetrics->SetUp (true);
+          rlocMetrics->SetIsLocalIf (true);
+          if (Ipv4Address::IsMatchingType (petrAddress))
+            {
+              rlocMetrics->SetLocAfi (RlocMetrics::IPv4);
+            }
+          else if (Ipv6Address::IsMatchingType (petrAddress))
+            {
+              rlocMetrics->SetLocAfi (RlocMetrics::IPv6);
+            }
+          else
+            {
+              NS_LOG_ERROR ("Unknown AFI");
+            }
+
+          destLocator->SetRlocMetrics (rlocMetrics);
+          //TODO set metric
+        }
+      else //If no PETR configured -> Drop packet
+        {
+          NS_LOG_DEBUG ("No PETR configured");
+          destLocator = 0;
+        }
+    }
+  else
+    {
+      destLocator = SelectDestinationRloc (remoteMapping);
+      NS_LOG_DEBUG ("Destination RLOC address: " << Ipv4Address::ConvertFrom (destLocator->GetRlocAddress ()));
+    }
 
   if (destLocator == 0)
     {
@@ -98,6 +140,7 @@ void LispOverIpv4Impl::LispOutput (Ptr<Packet> packet, Ipv4Header const &innerHe
       NS_LOG_WARN ("No valid destination locator for eid " << innerHeader.GetDestination () << ". Drop!");
       return;
     }
+
 
   // Check size for destRloc MTU if needed
   if (destLocator->GetRlocMetrics ()->GetMtu ()
@@ -142,6 +185,7 @@ void LispOverIpv4Impl::LispOutput (Ptr<Packet> packet, Ipv4Header const &innerHe
       return;
     }
 
+
   // if MTU set, check MTU for the srcRloc too
   if (srcLocator->GetRlocMetrics ()->GetMtu ()
       && (packet->GetSize () + LispHeader ().GetSerializedSize () +
@@ -161,12 +205,72 @@ void LispOverIpv4Impl::LispOutput (Ptr<Packet> packet, Ipv4Header const &innerHe
   // add inner header before encapsulating whole packet
   packet->AddHeader (innerHeader);
 
-  // compute src port based on inner header(Follow algo get_lisp_srcport)
-  udpSrcPort = LispOverIp::GetLispSrcPort (packet);
+  /* ------------------------------
+   *    ECM Encapsulation
+   * ------------------------------ */
+  // If we have a MapRegister that must be ECM encapsulated, source port must
+  // be set to 4341 (LISP data port) to initialize state in NAT.
+  if (ecm == LispOverIp::ECM_XTR || ecm == LispOverIp::ECM_RTR)
+    {
+      NS_LOG_DEBUG ("ECM encapsulation");
+      udpSrcPort = LispOverIp::LISP_DATA_PORT;
+      udpDstPort = LispOverIp::LISP_SIG_PORT;
+      packet = PrependEcmHeader (packet, ecm);
+      udpLength = innerHeader.GetPayloadSize () + innerHeader.GetSerializedSize () + LispEncapsulatedControlMsgHeader ().GetSerializedSize ();
 
-  // add LISP header to the packet (with inner IP header)
-  packet = PrependLispHeader (packet, localMapping, remoteMapping, srcLocator, destLocator);
+    }
+  /* ------------------------------
+   *    LISP Encapsulation
+   * ------------------------------ */
+  else  // add LISP header to the packet (with inner IP header)
+    {
+      NS_LOG_DEBUG ("LISP data header encapsulation");
 
+      /* === RTR === */
+      if (IsRtr ())
+        {
+
+          /* Case 1: destination is registered EID */
+          Ptr<MapEntry> mapEntryDest = m_mapTablesIpv4->CacheLookup (innerHeader.GetDestination ());
+          Ptr<MapEntry> mapEntrySrc = m_mapTablesIpv4->CacheLookup (innerHeader.GetSource ());
+          if ( mapEntryDest != 0 && mapEntryDest->IsNatedEntry ())
+            {
+              NS_LOG_DEBUG ("Encapsulation requires Translated NAT addresses (RTR)");
+
+              /* Must encapsulate Data packets to NATed device */
+              udpSrcPort = LispOverIp::LISP_SIG_PORT; // Correspond to NAT state
+              udpDstPort = remoteMapping->GetTranslatedPort (); // Correspond to NAT state
+              // Wireshark cannot read such a packet because LISP DATA PORT isn't used, but that's fine
+
+            }
+          /* Case 2: source is registered EID */
+          else if ( mapEntrySrc != 0 && mapEntrySrc->IsNatedEntry ())
+            {
+              // compute src port based on inner header(Follow algo get_lisp_srcport)
+              NS_LOG_DEBUG ("Encapsulation doesn't require Translated NAT addresses (RTR)");
+              udpSrcPort = LispOverIp::GetLispSrcPort (packet);
+              udpDstPort = LispOverIp::LISP_DATA_PORT;
+            }
+          else
+            {
+              NS_LOG_ERROR ("Neither source nor destination is a registered EID of RTR");
+            }
+
+        }
+      /* === xTR === */
+      else
+        {
+          // compute src port based on inner header(Follow algo get_lisp_srcport)
+          udpSrcPort = LispOverIp::GetLispSrcPort (packet);
+          udpDstPort = LispOverIp::LISP_DATA_PORT;
+        }
+
+      packet = PrependLispHeader (packet, localMapping, remoteMapping, srcLocator, destLocator);
+      // NB. In ns3 payloadSize is the size of payload without ip header.
+      udpLength = innerHeader.GetPayloadSize () + innerHeader.GetSerializedSize () + LispHeader ().GetSerializedSize ();
+
+
+    }
   if (!packet)
     {
       m_statisticsForIpv4->IncNoEnoughSpace ();
@@ -183,13 +287,10 @@ void LispOverIpv4Impl::LispOutput (Ptr<Packet> packet, Ipv4Header const &innerHe
    */
   if (Ipv4Address::IsMatchingType (srcLocator->GetRlocAddress ()))
     {
-      // NB. In ns3 payloadSize is the size of payload without ip header.
-      // /!\ problem with udp header payload size
-      udpLength = innerHeader.GetPayloadSize () + innerHeader.GetSerializedSize () + UdpHeader ().GetSerializedSize () + LispHeader ().GetSerializedSize ();
 
       //NS_LOG_DEBUG ("Building outer header");
       // outer Ipv4 Header
-      outerHeader.SetPayloadSize (udpLength + outerHeader.GetSerializedSize ());
+      outerHeader.SetPayloadSize (udpLength + 8); //8 is size of UDP header
       outerHeader.SetTtl (innerHeader.GetTtl ()); // copy inner TTL to outer header
       outerHeader.SetTos (0); // Default TOS
       outerHeader.SetDontFragment (); // set don't fragment bit
@@ -199,18 +300,33 @@ void LispOverIpv4Impl::LispOutput (Ptr<Packet> packet, Ipv4Header const &innerHe
 
       // we just add the Lisp header and the UDP header
       NS_LOG_LOGIC ("Encapsulating packet");
-      packet = LispEncapsulate (packet, udpLength, udpSrcPort);
+      packet = LispEncapsulate (packet, udpLength, udpSrcPort, udpDstPort);
       NS_ASSERT (m_statisticsForIpv4 != 0);
       m_statisticsForIpv4->IncOutputPackets ();
       // finally we have a packet that we can re-inject in IP
-      Ptr<Ipv4> ipv4 = GetNode ()->GetObject<Ipv4> ();
+      Ptr<Ipv4L3Protocol> ipv4 = GetNode ()->GetObject<Ipv4L3Protocol> ();
       NS_LOG_LOGIC ("Re-injecting packet in IPV4");
-      ipv4->SendWithHeader (packet, outerHeader, lispRoute);
+
+      if (GetPitr () && ecm != LispOverIp::ECM_XTR && ecm != LispOverIp::ECM_RTR) //For data packets only
+        {
+          /* --- Artificial delay for PxTRs introduced --- */
+          double rtt = m_rttVariable->GetValue ();
+          double stretch = m_pxtrStretchVariable->GetValue () + 1;
+          Simulator::Schedule (Seconds (rtt * stretch), &Ipv4L3Protocol::SendWithHeader, ipv4, packet, outerHeader, lispRoute);
+        }
+      else if (IsRtr ()) //For data packets, and ECM encapsulation
+        {
+          Simulator::Schedule (Seconds (m_rtrVariable->GetValue ()), &Ipv4L3Protocol::SendWithHeader, ipv4, packet, outerHeader, lispRoute);
+        }
+      else
+        {
+          ipv4->SendWithHeader (packet, outerHeader, lispRoute);
+        }
     }
   else if (Ipv6Address::IsMatchingType (srcLocator->GetRlocAddress ()))
     {
       // TODO Implement IPv6
-      LispOverIpv6Impl ().LispEncapsulate (packet, udpLength, udpSrcPort);
+      LispOverIpv6Impl ().LispEncapsulate (packet, udpLength, udpSrcPort, udpDstPort);
       // TODO Use Ipv6->Send()
       m_statisticsForIpv6->IncOutputDifAfPackets ();
     }
@@ -223,10 +339,11 @@ void LispOverIpv4Impl::LispOutput (Ptr<Packet> packet, Ipv4Header const &innerHe
 }
 
 // Packets coming from a possible Rloc to enter the AS
-void LispOverIpv4Impl::LispInput (Ptr<Packet> packet, Ipv4Header const &outerHeader)
+void LispOverIpv4Impl::LispInput (Ptr<Packet> packet, Ipv4Header const &outerHeader, bool lisp)
 {
   UdpHeader udpHeader;
   LispHeader lispHeader;
+  LispEncapsulatedControlMsgHeader ecmHeader;
   Ipv4Header innerIpv4Header;
   Ipv6Header innerIpv6Header;
   bool isMappingForPacket;
@@ -246,8 +363,16 @@ void LispOverIpv4Impl::LispInput (Ptr<Packet> packet, Ipv4Header const &outerHea
   packet->RemoveHeader (udpHeader);
   NS_LOG_DEBUG ("UDP header removed: " << udpHeader);
 
-  // get the LISP header
-  packet->RemoveHeader (lispHeader);
+  if (lisp)
+    {
+      // get the LISP header
+      packet->RemoveHeader (lispHeader);
+    }
+  else
+    {
+      // get the ECM header
+      packet->RemoveHeader (ecmHeader);
+    }
   NS_LOG_LOGIC ("Lisp header removed: " << lispHeader);
 
   packet->EnableChecking ();
@@ -268,11 +393,24 @@ void LispOverIpv4Impl::LispInput (Ptr<Packet> packet, Ipv4Header const &outerHea
       item = metadataIterator.Next ();
       if (!(item.tid.GetName ().compare (Ipv4Header::GetTypeId ().GetName ())))
         {
-          isMappingForPacket = LispOverIp::m_mapTablesIpv4->
-            IsMapForReceivedPacket (packet, lispHeader, static_cast<Address>
-                                    (outerHeader.GetSource ()),
-                                    static_cast<Address> (outerHeader.GetDestination ()));
+          NS_LOG_DEBUG ("Before checking metadata");
 
+          if (GetPetr () || IsRtr ()) // PETR or RTR case -> No need to check (decapsulate everything)
+            {
+              isMappingForPacket = true;
+            }
+          else
+            {
+              NS_LOG_DEBUG ("Classic xTR");
+              isMappingForPacket = LispOverIp::m_mapTablesIpv4->
+                IsMapForReceivedPacket (
+                packet,
+                lispHeader,
+                static_cast<Address> (outerHeader.GetSource ()),
+                static_cast<Address> (outerHeader.GetDestination ()));
+            }
+
+          NS_LOG_DEBUG ("Check passed");
           bool isControlPlanMsg = false;
           // if inner UDP of innerIpv4header is at port 4342. we should
           // use ipv4->Receive() to send this packet to itself.
@@ -288,13 +426,14 @@ void LispOverIpv4Impl::LispInput (Ptr<Packet> packet, Ipv4Header const &outerHea
                   NS_LOG_DEBUG ("UDP on port:" << unsigned(udpHeader.GetDestinationPort ()) << "->LISP Control Plan Message!");
                   isControlPlanMsg = true;
                 }
+              // Add UDP&IP header to the packet
+              packet->AddHeader (udpHeader);
             }
           innerIpv4Header.SetTtl (outerHeader.GetTtl ());
           Address from = static_cast<Address> (innerIpv4Header.GetSource ());
           Address to = static_cast<Address> (innerIpv4Header.GetDestination ());
           innerIpv4Header.EnableChecksum ();
-          // Add UDP&IP header to the packet
-          packet->AddHeader (udpHeader);
+
           packet->AddHeader (innerIpv4Header);
 
           // Either find mapping for inner ip header or find the inner message is control message
@@ -346,18 +485,28 @@ LispOverIpv4::MapStatus LispOverIpv4Impl::IsMapForEncapsulation (Ipv4Header cons
 {
   // mask == mask of the output iface
   NS_LOG_FUNCTION (this << innerHeader << mask);
-
+  NS_LOG_DEBUG ("Enter IsMapForEncapsulation");
   // Check if the source address is already defined
   if (innerHeader.GetSource ().IsEqual (Ipv4Address::GetAny ()))
     {
       return LispOverIpv4::No_Mapping;
     }
+  /**
+   * If both srcMapEntry and dstMapEntry are 0, we know we are dealing
+   * with a classic data packet.
+   * Therefore, we must check if the LISP device is registered to the MDS
+   * before sending any encapsulated packet
+   */
+  if (srcMapEntry == 0 && destMapEntry == 0 && !IsRegistered ())
+    {
+      return LispOverIpv4::Not_Registered;
+    }
+
 
   if (srcMapEntry == 0)
     {
       // Check if the prefix of the source address is in the db
       srcMapEntry = LispOverIp::DatabaseLookup (static_cast<Address> (innerHeader.GetSource ()));
-      NS_LOG_DEBUG ("found srcMapEntry: \n" << srcMapEntry->GetLocators ()->Print ());
     }
 
   // also check if it is the same address range (mask)
@@ -368,7 +517,7 @@ LispOverIpv4::MapStatus LispOverIpv4Impl::IsMapForEncapsulation (Ipv4Header cons
       //NS_LOG_DEBUG ("Current Database content: \n"<<*mapTable);
       return LispOverIpv4::No_Mapping;
     }
-
+  NS_LOG_DEBUG ("found srcMapEntry: \n" << srcMapEntry->GetLocators ()->Print ());
   if (srcMapEntry->IsNegative ())
     {
       NS_LOG_DEBUG ("[MapForEncap] Source map entry is a Negative mapping");
@@ -384,12 +533,14 @@ LispOverIpv4::MapStatus LispOverIpv4Impl::IsMapForEncapsulation (Ipv4Header cons
   if (destMapEntry == 0)
     {
       destMapEntry = LispOverIp::CacheLookup (static_cast<Address> (innerHeader.GetDestination ()));
+      // Supposed to return RTR RLOC if device is NATed
     }
 
   // Cache miss !
   if (destMapEntry == 0)
     {
       NS_LOG_DEBUG ("[MapForEncap] SOURCE map entry exists but DEST map entry does not !");
+      NS_LOG_DEBUG ("MapTables content:" << *m_mapTablesIpv4);
       Ptr<LispOverIp> lisp = GetNode ()->GetObject<LispOverIp>();
       //NS_LOG_INFO("XXX:"<<*lisp->GetMapTablesV4());
       MappingSocketMsgHeader sockMsgHdr;
@@ -411,12 +562,12 @@ LispOverIpv4::MapStatus LispOverIpv4Impl::IsMapForEncapsulation (Ipv4Header cons
     }
   else if (destMapEntry->IsNegative ())
     {
-      NS_LOG_DEBUG ("Negative Map Entry" << innerHeader.GetDestination ());
+      NS_LOG_DEBUG ("Negative Map Entry " << innerHeader.GetDestination ());
       /*
        * A mapping exists but it is a negative one. We treat it as
        * if no mapping was found.
        */
-      return LispOverIpv4::No_Mapping;
+      return LispOverIpv4::Mapping_Exist;
     }
 
   return LispOverIpv4::Mapping_Exist;
@@ -434,6 +585,12 @@ bool LispOverIpv4Impl::NeedEncapsulation (Ipv4Header const &ipHeader, Ipv4Mask m
   if (ipHeader.GetSource () == Ipv4Address::GetAny ())
     {
       return false;
+    }
+  //PITR case -> Encapsulate all traffic
+  // RTR case -> Relay for other EID spaces
+  if (GetPitr () || IsRtr ())
+    {
+      return true;
     }
 
   // Use dblookup to find the list of rlocs (if mapping exists)
@@ -459,7 +616,7 @@ bool LispOverIpv4Impl::NeedEncapsulation (Ipv4Header const &ipHeader, Ipv4Mask m
  * Check if the received packet
  * OK !!
  */
-bool LispOverIpv4Impl::NeedDecapsulation (Ptr<const Packet> packet, Ipv4Header const &ipHeader)
+bool LispOverIpv4Impl::NeedDecapsulation (Ptr<const Packet> packet, Ipv4Header const &ipHeader, uint16_t lispPort)
 {
   NS_LOG_FUNCTION (this << " outer header: " << ipHeader);
   NS_ASSERT (packet != 0);
@@ -467,7 +624,7 @@ bool LispOverIpv4Impl::NeedDecapsulation (Ptr<const Packet> packet, Ipv4Header c
   Ptr<Packet> p = packet->Copy ();
   UdpHeader udpHeader;
   LispHeader lispHeader;
-
+  // Exclude too small packets (malformed)
   if (packet->GetSize () < (udpHeader.GetSerializedSize () + ipHeader.GetSerializedSize () + lispHeader.GetSerializedSize ()))
     {
       NS_LOG_DEBUG ("Packet size not good");
@@ -478,21 +635,127 @@ bool LispOverIpv4Impl::NeedDecapsulation (Ptr<const Packet> packet, Ipv4Header c
     {
       NS_LOG_DEBUG ("Protocol beneath IP is really UDP");
       p->RemoveHeader (udpHeader);
-      if (udpHeader.GetDestinationPort () == LispOverIp::LISP_DATA_PORT)
+
+      /* Accept all DATA packets (packets with UDP dest 4342) */
+      if (lispPort == LispOverIp::LISP_DATA_PORT)
         {
-          return true;
+          if (udpHeader.GetDestinationPort () == lispPort) //LispOverIp::LISP_DATA_PORT or LispOverIp::LISP_SIG_PORT
+            {
+              NS_LOG_DEBUG ("Data packet => Needs decapsulation");
+              return true;
+            }
         }
+      /* Accept only CONTROL packets if they are ECM encapsulated.
+         Control packets that are not ECM encapsulated musn't be decapsulated, obviously */
+      else
+        {
+          uint8_t buf[p->GetSize ()];
+          p->CopyData (buf, p->GetSize ());
+          uint8_t msg_type = (buf[0] >> 4);
+          if (msg_type == static_cast<uint8_t> (LispEncapsulatedControlMsgHeader::GetMsgType ()))
+            {
+              NS_LOG_DEBUG ("ECM encapsulated Control packet => Needs decapsulation");
+              return true;
+            }
+          else
+            {
+              NS_LOG_DEBUG ("Control packet => Doesn't need decapsulation");
+              return false;
+            }
+        }
+
+    }
+  return false;
+}
+
+bool
+LispOverIpv4Impl::IsMapNotifyForNatedXtr (Ptr<Packet> packet, Ipv4Header const &ipHeader, Ptr<MapEntry>  &mapEntry)
+{
+
+  UdpHeader udpHeader;
+  packet->RemoveHeader (udpHeader);
+
+  uint8_t buf[packet->GetSize ()];
+  packet->CopyData (buf, packet->GetSize ());
+  uint8_t msg_type = buf[0] >> 4;
+
+  packet->AddHeader (udpHeader);
+
+  if (msg_type == static_cast<uint8_t> (LispControlMsg::MAP_NOTIFY))
+    {
+      Ptr<MapNotifyMsg> mapNotify = MapNotifyMsg::Deserialize (buf);
+
+      Address eid = mapNotify->GetRecord ()->GetEidPrefix ();
+      NS_LOG_DEBUG ("MapNotify for EID: " << eid);
+
+      /* Check if MapNotify is for RTR or for NATed device */
+      mapEntry = m_mapTablesIpv4->CacheLookup (eid);
+      if (mapEntry != 0) // Cache hit -> MapNotify must be Data encapsulated
+        {
+          return true; //TODO: maybe check that this mapEntry is a NATED mapEntry (with additional fields in entry)
+        }
+      /* /!\ Must first check cache, otherwise, MapNotify will be delivered locally */
+      mapEntry = m_mapTablesIpv4->DatabaseLookup (eid);
+      if (mapEntry != 0) // Database hit -> MapNotify is for local delivery
+        {
+          return false;
+        }
+
+      return false;
+    }
+  return false;
+
+}
+
+bool
+LispOverIpv4Impl::IsMapRequestForNatedXtr (Ptr<Packet> packet, Ipv4Header const &ipHeader, Ptr<MapEntry>  &mapEntry)
+{
+  UdpHeader udpHeader;
+  packet->RemoveHeader (udpHeader);
+
+  uint8_t buf[packet->GetSize ()];
+  packet->CopyData (buf, packet->GetSize ());
+  uint8_t msg_type = buf[0] >> 4;
+
+  packet->AddHeader (udpHeader);
+
+  if (msg_type == static_cast<uint8_t> (LispControlMsg::MAP_REQUEST))
+    {
+      Ptr<MapRequestMsg> mapRequest = MapRequestMsg::Deserialize (buf);
+
+      if (mapRequest->GetS () == 1) //SMR or SMR-invoqued MapRequest
+        {
+          return false;
+        }
+
+      Address eid = mapRequest->GetMapRequestRecord ()->GetEidPrefix ();
+      NS_LOG_DEBUG ("MapNotify for EID: " << eid);
+
+      /* Check if MapNotify is for RTR or for NATed device */
+      mapEntry = m_mapTablesIpv4->CacheLookup (eid);
+      if (mapEntry != 0) // Cache hit -> MapNotify must be Data encapsulated
+        {
+          return true; //TODO: maybe check that this mapEntry is a NATED mapEntry (with additional fields in entry)
+        }
+      /* /!\ Must first check cache, otherwise, MapNotify will be delivered locally */
+      mapEntry = m_mapTablesIpv4->DatabaseLookup (eid);
+      if (mapEntry != 0) // Database hit -> MapNotify is for local delivery
+        {
+          return false;
+        }
+
+      return false;
     }
   return false;
 }
 
 // called at the end of lisp_output
-Ptr<Packet> LispOverIpv4Impl::LispEncapsulate (Ptr<Packet> packet, uint16_t udpLength, uint16_t udpSrcPort)
+Ptr<Packet> LispOverIpv4Impl::LispEncapsulate (Ptr<Packet> packet, uint16_t udpLength, uint16_t udpSrcPort, uint16_t udpDstPort)
 {
   // add UDP header with src ports + dest port (4341 for Data or 4342 for Control)
   UdpHeader udpHeader;
   // UDP header
-  udpHeader.SetDestinationPort (LispOverIp::LISP_DATA_PORT);
+  udpHeader.SetDestinationPort (udpDstPort);
   udpHeader.SetSourcePort (udpSrcPort);
   udpHeader.ForceChecksum (0); // set checksum as 0 (RFC 6830)
   // the ip payload size include data + header sizes
@@ -503,4 +766,130 @@ Ptr<Packet> LispOverIpv4Impl::LispEncapsulate (Ptr<Packet> packet, uint16_t udpL
 
   return packet;
 }
+
+void
+LispOverIpv4Impl::ChangeItrRloc (Ptr<Packet> &packet, Address address)
+{
+  /* Remove UDP header */
+  UdpHeader udpHeader;
+  packet->RemoveHeader (udpHeader);
+
+  uint8_t buf[packet->GetSize ()];
+  packet->CopyData (buf, packet->GetSize ());
+  Ptr<MapRequestMsg> msg = MapRequestMsg::Deserialize (buf);
+
+  msg->SetItrRlocAddrIp (address);
+
+  /*uint8_t BUF_SIZE = 16 + msg->GetAuthDataLen() + 16
+        + 12 * msg->GetRecord()->GetLocatorCount();*/
+  uint8_t *newbuf = new uint8_t[64];
+  msg->Serialize (newbuf);
+  Ptr<Packet> p = Create<Packet> (newbuf, 64);
+  packet = p;
+
+  /* Add back UDP header */
+  packet->AddHeader (udpHeader);
+}
+
+bool
+LispOverIpv4Impl::IsMapRegister (Ptr<Packet> packet)
+{
+  /* Remove UDP header */
+  UdpHeader udpHeader;
+  packet->RemoveHeader (udpHeader);
+  /* Remove ECM header */
+  LispEncapsulatedControlMsgHeader ecmHeader;
+  packet->RemoveHeader (ecmHeader);
+  /* Remove Inner IpHeader */
+  Ipv4Header innerHeader;
+  packet->RemoveHeader (innerHeader);
+  /* Remove inner UDP header */
+  UdpHeader innerUdpHeader;
+  packet->RemoveHeader (innerUdpHeader);
+  /* We arrive at LISP msg */
+  uint8_t buf[packet->GetSize ()];
+  packet->CopyData (buf, packet->GetSize ());
+  uint8_t msg_type = (buf[0] >> 4);
+
+  return msg_type == static_cast<uint8_t> (MapRegisterMsg::GetMsgType ());
+
+}
+
+void
+LispOverIpv4Impl::SetNatedEntry (Ptr<Packet> packet, Ipv4Header const &outerHeader)
+{
+
+  Ptr<MapEntry> mapEntryCache = Create<MapEntryImpl> ();
+  Ptr<MapEntry> mapEntryDB = Create<MapEntryImpl> ();
+
+  /* For cache entry: Locator is the translated global address */
+  Ptr<Locators> locators = Create<LocatorsImpl> ();
+  Ptr<Locator> locator = Create<Locator> (outerHeader.GetSource ());
+  locators->InsertLocator (locator);
+  mapEntryCache->SetLocators (locators);
+
+  /* RTR address */
+  mapEntryCache->SetRtrRloc (Create<Locator> (outerHeader.GetDestination ()));
+
+  UdpHeader udpHeader;
+  packet->RemoveHeader (udpHeader);
+
+  /* Translated global port */
+  mapEntryCache->SetTranslatedPort (udpHeader.GetSourcePort ());
+
+  /* Remove ECM header */
+  LispEncapsulatedControlMsgHeader ecmHeader;
+  packet->RemoveHeader (ecmHeader);
+  /* Remove Inner IpHeader */
+  Ipv4Header innerHeader;
+  packet->RemoveHeader (innerHeader);
+
+  /* Local (NATed) RLOC address of xTR */
+  mapEntryCache->SetXtrLloc (Create<Locator> (innerHeader.GetSource ()));
+
+  /* Remove inner UDP header */
+  UdpHeader innerUdpHeader;
+  packet->RemoveHeader (innerUdpHeader);
+
+  /* We arrive at MapRegister msg */
+  uint8_t buf[packet->GetSize ()];
+  packet->CopyData (buf, packet->GetSize ());
+  Ptr<MapRegisterMsg> msg = MapRegisterMsg::Deserialize (buf);
+  std::stringstream ss;
+  Ptr<MapReplyRecord> record = msg->GetRecord ();
+  Ptr<EndpointId> eid;
+  ss << "/" << unsigned (record->GetEidMaskLength ());
+  Ipv4Mask mask = Ipv4Mask (ss.str ().c_str ());
+  eid = Create<EndpointId> (record->GetEidPrefix (), mask);
+  mapEntryCache->SetEidPrefix (eid);
+  mapEntryDB->SetEidPrefix (eid);
+  /* For DB entry: Locator is the RTR locator */
+  mapEntryDB->SetLocators (record->GetLocators ());
+
+  /* Set Entry in cache */
+  m_mapTablesIpv4->SetEntry (record->GetEidPrefix (), mask, mapEntryCache, MapTables::IN_CACHE);
+
+  /* Set Entry in database */
+  m_mapTablesIpv4->SetEntry (record->GetEidPrefix (), mask, mapEntryDB, MapTables::IN_DATABASE);
+
+  /* When RTR receives an ECM encapsulated MapRegister for the EID MN, it adds:
+   * - in cache: the entry (EID -> NAT translated address) => Forward data packets to NATed device
+   * - in database: the entry (EID -> RTR RLOC) => Answer MapRequests in behalf of NATed device
+   *
+   * The entry in the cache is enough to forward data packets (addressed to EID) towards
+   * the NATed device.
+   * However, there is no entry in the cache to forward control packets (addressed to LRLOC)
+   * towards the NATed device.
+   * Therefore, we manually add such an entry (LRLOC -> NAT translated address) into the cache.
+   */
+  Ptr<MapEntry> mapEntryCacheControl = Create<MapEntryImpl> ();
+  mapEntryCacheControl->SetLocators (locators);
+  mapEntryCacheControl->SetRtrRloc (Create<Locator> (outerHeader.GetDestination ()));
+  mapEntryCacheControl->SetTranslatedPort (udpHeader.GetSourcePort ());
+  mapEntryCacheControl->SetXtrLloc (Create<Locator> (innerHeader.GetSource ()));
+  Ptr<EndpointId> eidControl = Create<EndpointId> (innerHeader.GetSource (), Ipv4Mask ("/32"));
+  mapEntryCacheControl->SetEidPrefix (eidControl);
+  m_mapTablesIpv4->SetEntry (eidControl->GetEidAddress (), Ipv4Mask ("/32"), mapEntryCacheControl, MapTables::IN_CACHE);
+}
+
 } /* namespace ns3 */

@@ -25,6 +25,7 @@
 #include "ns3/ptr.h"
 #include "lisp-protocol.h"
 #include "lisp-header.h"
+#include "ns3/lisp-encapsulated-control-msg-header.h"
 #include "locator.h"
 #include "rloc-metrics.h"
 #include "endpoint-id.h"
@@ -32,6 +33,9 @@
 #include "ns3/object.h"
 #include "mapping-socket-address.h"
 #include "mapping-socket-msg.h"
+#include "ns3/random-variable-stream.h"
+#include "ns3/pointer.h"
+#include "ns3/double.h"
 #include <set>
 //#include "lisp-mapping-socket.h"
 
@@ -84,6 +88,23 @@ public:
      */
     LISP_ETR_SECURE = 3
   };
+
+  enum EcmEncapsulation
+  {
+    /*
+     * ECM header added by RTR: bits in ECM header: R=0, N=1
+     */
+    ECM_RTR = 1,
+    /*
+     * ECM header added by xTR: bits in ECM header: R=1, N=0
+     */
+    ECM_XTR = 2,
+    /*
+     * No ECM header
+     */
+    ECM_NO = 3
+  };
+
   /**
    * \struct address_compare
    *
@@ -112,6 +133,9 @@ public:
    */
   static TypeId GetTypeId (void);
 
+  static Ptr<RandomVariableStream> GetRttModel (void);
+  static Ptr<RandomVariableStream> GetPxtrStretchModel (void);
+  static Ptr<RandomVariableStream> GetRtrModel (void);
 
   /**
    * This static method prepends a newly built LISP header to
@@ -129,6 +153,8 @@ public:
                                         localMapEntry, Ptr<const MapEntry> remoteMapEntry, Ptr<Locator> sourceRloc,
                                         Ptr<Locator> destRloc);
 
+  static Ptr<Packet> PrependEcmHeader (Ptr<Packet> packet, LispOverIp::EcmEncapsulation ecm);
+
 
   /**
    * This static method checks if the LISP header of a received packet
@@ -142,9 +168,8 @@ public:
    *
    * \return True if the LISP header is well formated, false otherwise.
    */
-  static bool CheckLispHeader (const LispHeader &header, Ptr<const MapEntry>
-                               localMapEntry, Ptr<const MapEntry> remoteMapEntry, Ptr<Locator> srcRloc,
-                               Ptr<Locator> destRloc, Ptr<LispOverIp> lispOverIp);
+  static bool CheckLispHeader (const LispHeader &header, Ptr<const MapEntry> localMapEntry, Ptr<const MapEntry> remoteMapEntry,
+                               Ptr<Locator> srcRloc, Ptr<Locator> destRloc, Ptr<LispOverIp> lispOverIp);
 
   /**
    * The goal of this method is to select the source UDP port for the
@@ -244,6 +269,18 @@ public:
   Ptr<MapEntry> CacheLookup (Address const &eidAddress) const;
 
   /**
+   * \brief Delete the EID address given as an argument in the LISP Database.
+   * \param eidAddress The EID address that is deleted from the database.
+   */
+  void DatabaseDelete (Address const &eidAddress);
+
+  /**
+   * \brief Delete the EID address given as an argument in the LISP Cache.
+   * \param eidAddress The EID address that is deleted from the cache.
+   */
+  void CacheDelete (Address const &eidAddress);
+
+  /**
    * \brief Select the best destination RLOC among all the RLOC in the
    * map entry.
    *
@@ -273,7 +310,7 @@ public:
    * \param udpSrcPort The value of the source port field of the udp header
    * \return The packet with the udp header prepended to it.
    */
-  virtual Ptr<Packet> LispEncapsulate (Ptr<Packet> packet, uint16_t udpLength, uint16_t udpSrcPort) = 0;
+  virtual Ptr<Packet> LispEncapsulate (Ptr<Packet> packet, uint16_t udpLength, uint16_t udpSrcPort, uint16_t udpDstPort) = 0;
 
   /**
    * \brief Get the LISP statistics for IPv4 packets.
@@ -364,8 +401,72 @@ public:
    */
   void Print (std::ostream &os) const;
 
+  /**
+   * \brief Set the PETR address.
+   * \param address The address of the PETR.
+   */
+  void SetPetrAddress (Address address);
+
+  /**
+   * \brief Get the address of the PETR.
+   * \return The address of the PETR.
+   */
+  Address GetPetrAddress (void);
+
+  /**
+   * \brief Set the m_petr member.
+   * \param petr True if the device is a PETR.
+   */
+  void SetPetr (bool petr);
+
+  /**
+   * \brief Get the m_petr member.
+   * \return True if the device is a PETR
+   */
+  bool GetPetr (void);
+
+  /**
+   * \brief Set the m_pitr member.
+   * \param petr True if the device is a PITR.
+   */
+  void SetPitr (bool petr);
+
+  /**
+   * \brief Get the m_pitr member.
+   * \return True if the device is a PITR
+   */
+  bool GetPitr (void);
 
 
+  /**
+   * \brief Set the m_nated member.
+   * \param nated True if the device is NATed.
+   */
+  void SetNated (bool nated);
+
+  /**
+   * \brief Get the m_nated member.
+   * \return True if the device is a NATed
+   */
+  bool IsNated (void);
+
+  /**
+   * \brief Set the m_rtr member.
+   * \param nated True if the device is an RTR.
+   */
+  void SetRtr (bool rtr);
+
+  /**
+   * \brief Get the m_rtr member.
+   * \return True if the device is an RTR
+   */
+  bool IsRtr (void);
+
+  /**
+   * \brief Get the m_registered member.
+   * \return True if the device is registered to the MDS.
+   */
+  bool IsRegistered (void);
 
 
 protected:
@@ -377,6 +478,9 @@ protected:
   //TODO: Never understand why we need such a m_rlocsList. How and where use it?
   std::set<Address> m_rlocsList;        //!< The list of all RLOCs addresses of the system (needed to prevent encapsulation)
 
+  Ptr<RandomVariableStream> m_rttVariable; //!< RV representing the distribution of RTTs between xTRs
+  Ptr<RandomVariableStream> m_pxtrStretchVariable; //!< RV representing the relative delay stretch introduced by the use of proxies
+  Ptr<RandomVariableStream> m_rtrVariable;
 
 private:
   /**
@@ -389,6 +493,15 @@ private:
   Ptr<Socket> m_lispSocket; //!< the socket owned by the data plane.
   Address m_lispAddress; //!< the "address" of the data plane (to connect to the socket)
   Ptr<Node> m_node; //!< the node
+  /* PxTRs */
+  Address m_petrAddress; //!< Address of the configured PETR for non-LISP traffic
+  bool m_pitr; //!< True if the device is a PITR
+  bool m_petr; //!< True if the device is PETR
+
+  bool m_nated; //!< True if the LISP device is NATed
+  bool m_rtr; //!< True if the LISP device is an RTR
+
+  bool m_registered; //!< True after the LISP device receives a MapNotify. Used to not send LISP encapsulated packets before registration is complete
 
 };
 

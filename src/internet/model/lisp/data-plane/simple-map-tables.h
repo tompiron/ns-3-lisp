@@ -88,6 +88,12 @@ public:
   Ptr<MapEntry>
   CacheLookup (const Address &eidAddress);
 
+  void DatabaseDelete (const Address &eidAddress);
+
+  void CacheDelete (const Address &eidAddress);
+
+  void WipeCache (void);
+
   void
   SetEntry (const Address &eid, const Ipv4Mask &mask, Ptr<MapEntry> mapEntry,
             MapEntryLocation location);

@@ -41,9 +41,11 @@
 #include "icmpv4-l4-protocol.h"
 #include "ipv4-interface.h"
 #include "ipv4-raw-socket-impl.h"
+#include "ipv4-netfilter.h"
 
 #include "ns3/simple-map-tables.h"              //to support LISP&LISP-MN
 #include "ns3/lisp-over-ipv4.h"                         //to support LISP&LISP-MN
+#include "ns3/map-notify-msg.h"
 
 namespace ns3 {
 
@@ -110,7 +112,7 @@ Ipv4L3Protocol::GetTypeId (void)
   return tid;
 }
 
-Ipv4L3Protocol::Ipv4L3Protocol ()
+Ipv4L3Protocol::Ipv4L3Protocol () : m_netfilter (0)
 {
   NS_LOG_FUNCTION (this);
 }
@@ -282,6 +284,19 @@ Ipv4L3Protocol::GetRoutingProtocol (void) const
 {
   NS_LOG_FUNCTION (this);
   return m_routingProtocol;
+}
+
+void
+Ipv4L3Protocol::SetNetfilter (Ptr<Ipv4Netfilter> netfilter)
+{
+  NS_LOG_FUNCTION (this << netfilter);
+  m_netfilter = netfilter;
+}
+
+Ptr<Ipv4Netfilter>
+Ipv4L3Protocol::GetNetfilter (void) const
+{
+  return m_netfilter;
 }
 
 void
@@ -557,7 +572,6 @@ Ipv4L3Protocol::Receive ( Ptr<NetDevice> device, Ptr<const Packet> p, uint16_t p
 
   NS_LOG_LOGIC ("Packet from " << from << " received on node " <<
                 m_node->GetId ());
-
   //===================================Adaptation to support LISP==============================
   /**
    * ATTENTION: It's important to save the input parameter device into
@@ -580,7 +594,6 @@ Ipv4L3Protocol::Receive ( Ptr<NetDevice> device, Ptr<const Packet> p, uint16_t p
   NS_ASSERT_MSG (interface != -1, "Received a packet from an interface that is not known to IPv4");
 
   Ptr<Packet> packet = p->Copy ();
-
   Ptr<Ipv4Interface> ipv4Interface = m_interfaces[interface];
 
   if (ipv4Interface->IsUp ())
@@ -595,6 +608,23 @@ Ipv4L3Protocol::Receive ( Ptr<NetDevice> device, Ptr<const Packet> p, uint16_t p
       m_dropTrace (ipHeader, packet, DROP_INTERFACE_DOWN, m_node->GetObject<Ipv4> (), interface);
       return;
     }
+
+  // ========================== Adaptation to support NetFilter =============================
+  if (m_netfilter != 0)
+    {
+      NS_LOG_DEBUG ("NF_INET_PRE_ROUTING Hookon node " << m_node->GetId ());
+      Verdicts_t verdict = (Verdicts_t) m_netfilter->ProcessHook (PF_INET, NF_INET_PRE_ROUTING, packet, device, 0);
+      if (verdict == NF_DROP)
+        {
+          NS_LOG_DEBUG ("NF_INET_PRE_ROUTING packet not accepted");
+          Ipv4Header ipHeader;
+          packet->RemoveHeader (ipHeader);
+          m_dropTrace (ipHeader, packet, DROP_NETFILTER, m_node->GetObject<Ipv4> (), interface);
+          return;
+        }
+    }
+  // ==================== End of adaptation to support NetFilter ====================
+
 
   Ipv4Header ipHeader;
   if (Node::ChecksumEnabled ())
@@ -648,7 +678,7 @@ Ipv4L3Protocol::Receive ( Ptr<NetDevice> device, Ptr<const Packet> p, uint16_t p
 
   for (SocketList::iterator i = m_sockets.begin (); i != m_sockets.end (); ++i)
     {
-      NS_LOG_LOGIC ("Forwarding to raw socket");
+      NS_LOG_DEBUG ("Forwarding to raw socket");
       Ptr<Ipv4RawSocketImpl> socket = *i;
       socket->ForwardUp (packet, ipHeader, ipv4Interface);
     }
@@ -755,10 +785,19 @@ Ipv4L3Protocol::Send (Ptr<Packet> packet,
                       Ptr<Ipv4Route> route)
 {
   NS_LOG_FUNCTION (this << packet << source << destination << uint32_t (protocol) << route);
-
   Ipv4Header ipHeader;
   bool mayFragment = true;
   uint8_t ttl = m_defaultTtl;
+
+  // ============= Adaptation for NetFilter =============
+  Ptr<NetDevice> device;
+
+  if (route)
+    {
+      device = route->GetOutputDevice ();
+    }
+  // =========== End of adaptation for NetFilter ============
+
   SocketIpTtlTag tag;
   bool found = packet->RemovePacketTag (tag);
   if (found)
@@ -806,7 +845,7 @@ Ipv4L3Protocol::Send (Ptr<Packet> packet,
     {
       NS_LOG_DEBUG ("No route is given as input parameter!");
     }
-  if (lispOverIpv4 != 0 and nbEntriesDB != 0)
+  if (lispOverIpv4 != 0 and (nbEntriesDB != 0 || lispOverIpv4->GetPitr ()))
     {
       Ptr<MapEntry> srcMapEntry = 0;
       Ptr<MapEntry> destMapEntry = 0;
@@ -860,15 +899,161 @@ Ipv4L3Protocol::Send (Ptr<Packet> packet,
         static_cast<Address> (destination));
       bool srcIsRloc = lispOverIpv4->IsLocatorInList (
         static_cast<Address> (source));
+      LispOverIp::EcmEncapsulation ecmEncap = LispOverIp::ECM_NO;
       if (destIsRloc && srcIsRloc)
         {
           NS_LOG_DEBUG (
-            "Both dst and src are in RLOC list known by xTR. GOTO No Encapsulation.");
-          goto no_encap;
+            "Both dst and src are in RLOC list known by xTR.");
+
+          /*
+           * MapRegister messages arrive here (because both source and destination
+           * are RLOCs).
+           * If LISP device is NATed:
+           *    MapRegister message must be ECM encapsulated towards RTR, instead of going to
+           *    no_encap.
+           * If LISP device is RTR:
+           *    MapRegister messages from other xTRs must be ECM encapsulated towards MS.
+           *    Own MapRegister messages musn't be encapsulated.
+           */
+
+          /* Check if this is a MapRegister message */
+          Ptr<Packet> packetCopy = packet->Copy ();
+          UdpHeader udpHeader;
+          packetCopy->RemoveHeader (udpHeader);
+
+          uint8_t buf[packetCopy->GetSize ()];
+          packetCopy->CopyData (buf, packetCopy->GetSize ());
+          uint8_t msg_type = (buf[0] >> 4);
+          if (msg_type == static_cast<uint8_t> (MapRegisterMsg::GetMsgType ()))
+            {
+              if (lispOverIpv4->IsNated ())
+                {
+                  NS_LOG_DEBUG ("This is a MapRegister and device is NATed -> Encapsulate");
+                  ecmEncap = LispOverIp::ECM_XTR;
+                  Ptr<Locator> srcRloc = Create<Locator> (static_cast<Address> (source));
+                  srcMapEntry = Create<MapEntryImpl> (srcRloc); //Like case where source is RLOC
+                  goto ecm;
+                }
+              else if (lispOverIpv4->IsRtr ())
+                {
+                  /* Change inner header source with RTR RLOC (found in local database)
+                  //Assumption: there is a unique eid space and a unique locator in database, or several
+                    eid space but all under the same RLOC */
+                  Ptr<MapTables> mapTables = lispOverIpv4->GetMapTablesV4 ();
+                  std::list<Ptr<MapEntry> > entryList;
+                  mapTables->GetMapEntryList (MapTables::IN_DATABASE, entryList);
+                  Ptr<MapEntry> mapEntry = entryList.front ();
+                  Address maddr = mapEntry->RlocSelection ()->GetRlocAddress ();
+
+                  //Own MapRegisters musn't be encapsulated.
+                  if (innerIpHeader.GetSource ().IsEqual (Ipv4Address::ConvertFrom (maddr)))
+                    {
+                      goto no_encap;
+                    }
+
+                  innerIpHeader.SetSource (Ipv4Address::ConvertFrom (maddr));
+
+                  ecmEncap = LispOverIp::ECM_RTR;
+                  Ptr<Locator> dstRloc = Create<Locator> (static_cast<Address> (destination)); //Encapsulate towards MS
+                  destMapEntry = Create<MapEntryImpl> (dstRloc);
+                  goto ecm;
+                }
+              else  // LISP device is neither NATed nor an RTR -> Usual behaviour
+                {
+                  goto no_encap;
+                }
+            }
+          /*
+           * MapNotify messages arrive here (because both source and destination
+           * are RLOCs).
+           * If LISP device is RTR:
+           *    MapNotify messages destined to other xTRs must be DataMapNotifyEncapsulated
+           *    towards NATed xTR
+           */
+          else if (msg_type == static_cast<uint8_t> (MapNotifyMsg::GetMsgType ())
+                   && lispOverIpv4->IsRtr ())
+            {
+              /* Source locator is RTR RLOC (found in local database)
+              //Assumption: there is a unique eid space and a unique locator in database,
+              or several eid space but all under the same RLOC */
+              NS_LOG_DEBUG ("MapNotify message");
+data_encapsulate:
+              Ptr<MapTables> mapTables = lispOverIpv4->GetMapTablesV4 ();
+              std::list<Ptr<MapEntry> > entryList;
+              mapTables->GetMapEntryList (MapTables::IN_DATABASE, entryList);
+              Ptr<MapEntry> mapEntry = entryList.front ();
+              Address maddr = mapEntry->RlocSelection ()->GetRlocAddress ();
+
+              Ptr<Locator> srcRloc = Create<Locator> (static_cast<Address> (maddr));
+              srcMapEntry = Create<MapEntryImpl> (srcRloc); //Like case where source is RLOC
+              ecmEncap = LispOverIp::ECM_NO;
+
+              goto ecm;
+            }
+          /* MapRequests arrive here (because both source and destination are RLOCs).
+           * If LISP device is RTR:
+           *    RTR must reoriginate SMRs coming from registered NATed devices
+           *    RTR must data encapsulate MapRequests for NATed EID.
+           */
+          else if (msg_type == static_cast<uint8_t> (MapRequestMsg::GetMsgType ()))
+            {
+              //TODO: differentiate SMR from MapRequest, or it's fine?
+
+              if (lispOverIpv4->IsNated ())
+                {
+                  NS_LOG_DEBUG ("This is an SMR and device is NATed -> Encapsulate");
+                  ecmEncap = LispOverIp::ECM_XTR;
+                  Ptr<Locator> srcRloc = Create<Locator> (static_cast<Address> (source));
+                  srcMapEntry = Create<MapEntryImpl> (srcRloc); //Like case where source is RLOC
+                  goto ecm;
+                }
+              else if (lispOverIpv4->IsRtr ())
+                {
+
+                  /* RTR must data encapsulate MapRequests for NATed EID */
+                  Ptr<MapEntry> m;
+                  if (lispOverIpv4->IsMapRequestForNatedXtr (packet, innerIpHeader, m))
+                    {
+                      NS_LOG_DEBUG ("This is a MapRequest for a NATed EID -> Data encapsulate towards NATed LISP device");
+                      goto data_encapsulate;
+                    }
+
+                  /* Change inner header source with RTR RLOC (found in local database)
+                  //Assumption: there is a unique eid space and a unique locator in database, or several
+                  eid space but all under the same RLOC */
+                  NS_LOG_DEBUG ("This is an SMR and device is RTR -> Reoriginates");
+                  // Attention, we reoriginate both SMRs sent by RTR, and by NATed device
+                  // Here it makes no difference, but should be aware of that still.
+                  Ptr<MapTables> mapTables = lispOverIpv4->GetMapTablesV4 ();
+                  std::list<Ptr<MapEntry> > entryList;
+                  mapTables->GetMapEntryList (MapTables::IN_DATABASE, entryList);
+                  Ptr<MapEntry> mapEntry = entryList.front ();
+                  Address maddr = mapEntry->RlocSelection ()->GetRlocAddress ();
+
+                  source = Ipv4Address::ConvertFrom (maddr);
+
+                  /* Change ITR RLOC field in SMR */
+                  lispOverIpv4->ChangeItrRloc (packet, Ipv4Address::ConvertFrom (maddr));
+
+                  goto no_encap;
+
+
+                }
+              else // LISP device is neither NATed nor an RTR -> Usual behaviour
+                {
+                  goto no_encap;
+                }
+
+            }
+          else   //Not a MapRegister, not a MapNotify, not an SMR -> Usual behaviour
+            {
+              goto no_encap;
+            }
         }
 
-      if (srcIsRloc)
+      if (srcIsRloc || lispOverIpv4->GetPitr () || lispOverIpv4->IsRtr ())
         {
+          NS_LOG_DEBUG ("Source is RLOC (or PITR, or RTR)");
           Ptr<Locator> srcRloc = Create<Locator> (
             static_cast<Address> (source));
           srcMapEntry = Create<MapEntryImpl> (srcRloc);
@@ -876,10 +1061,12 @@ Ipv4L3Protocol::Send (Ptr<Packet> packet,
 
       if (destIsRloc)
         {
+          NS_LOG_DEBUG ("Destination is RLOC");
           Ptr<Locator> destRloc = Create<Locator> (
             static_cast<Address> (destination));
           destMapEntry = Create<MapEntryImpl> (destRloc);
         }
+ecm:
       LispOverIpv4::MapStatus isMapForEncap =
         lispOverIpv4->IsMapForEncapsulation (innerIpHeader, srcMapEntry,
                                              destMapEntry,
@@ -888,16 +1075,25 @@ Ipv4L3Protocol::Send (Ptr<Packet> packet,
         {
           NS_LOG_DEBUG ("Ready to Encapsulate");
           lispOverIpv4->LispOutput (packet, innerIpHeader, srcMapEntry,
-                                    destMapEntry, lispRoute);
+                                    destMapEntry, lispRoute, ecmEncap);
+          // For NATed device, destMapEntry is supposed to correspond to RTR RLOC
+          NS_LOG_DEBUG ("After LispOutput");
           return;
         }
       else if (isMapForEncap == LispOverIpv4::No_Need_Encap)
         {
+          NS_LOG_DEBUG ("No encapsulation needed");
           goto no_encap;
+        }
+      else if (isMapForEncap == LispOverIpv4::Not_Registered)
+        {
+          NS_LOG_DEBUG ("LISP device is not yet registered to the MDS. Cannot send data packets.");
+          return;
         }
       else
         {
-          return;                       // if no mapping, cache miss or one negative map entry
+          NS_LOG_DEBUG ("Cache miss");
+          return;                       // if no mapping, cache miss
         }
     }
 
@@ -942,6 +1138,39 @@ no_encap:
               NS_ASSERT (packetCopy->GetSize () <= outInterface->GetDevice ()->GetMtu ());
 
               m_sendOutgoingTrace (ipHeader, packetCopy, ifaceIndex);
+
+              // ============= Adptation for NetFilter =================
+              if (m_netfilter != 0)
+                {
+                  packetCopy->AddHeader (ipHeader);
+                  NS_LOG_DEBUG ("NF_INET_LOCAL_OUT Hook on node " << m_node->GetId ());
+                  Verdicts_t verdict = (Verdicts_t) m_netfilter->ProcessHook (PF_INET, NF_INET_LOCAL_OUT, packetCopy, 0, device);
+                  if (verdict == NF_DROP)
+                    {
+                      NS_LOG_DEBUG ("NF_INET_LOCAL_OUT packet not accepted");
+                      m_dropTrace (ipHeader, packetCopy, DROP_NETFILTER, m_node->GetObject<Ipv4> (), ifaceIndex);
+                      return;
+                    }
+                  packetCopy->RemoveHeader (ipHeader);
+                }
+              // Do not call SendRealOut () (which requires passing in a route)
+              // instead, just send the packet on the interface
+              if (m_netfilter != 0)
+                {
+                  packetCopy->AddHeader (ipHeader);
+                  NS_LOG_DEBUG ("NF_INET_POST_ROUTING Hook on node " << m_node->GetId ());
+                  Callback<uint32_t, Ptr<Packet> > ccb = MakeCallback (&Ipv4Netfilter::NetfilterConntrackConfirm, m_netfilter);
+                  Verdicts_t verdict = (Verdicts_t) m_netfilter->ProcessHook (PF_INET, NF_INET_POST_ROUTING, packetCopy, 0, device, ccb);
+                  if (verdict == NF_DROP)
+                    {
+                      NS_LOG_DEBUG ("NF_INET_POST_ROUTING packet not accepted");
+                      m_dropTrace (ipHeader, packetCopy, DROP_NETFILTER, m_node->GetObject<Ipv4> (), ifaceIndex);
+                      return;
+                    }
+                  packetCopy->RemoveHeader (ipHeader);
+                }
+
+              // ============== End Adaptation for NetFilter =============
               CallTxTrace (ipHeader, packetCopy, m_node->GetObject<Ipv4> (), ifaceIndex);
               outInterface->Send (packetCopy, ipHeader, destination);
             }
@@ -966,6 +1195,39 @@ no_encap:
               ipHeader = BuildHeader (source, destination, protocol, packet->GetSize (), ttl, tos, mayFragment);
               Ptr<Packet> packetCopy = packet->Copy ();
               m_sendOutgoingTrace (ipHeader, packetCopy, ifaceIndex);
+
+              // =========== Adaptation for NetFilter =================
+              if (m_netfilter != 0)
+                {
+                  NS_LOG_DEBUG ("NF_INET_LOCAL_OUT Hook on node " << m_node->GetId ());
+                  packetCopy->AddHeader (ipHeader);
+                  Verdicts_t verdict = (Verdicts_t) m_netfilter->ProcessHook (PF_INET, NF_INET_LOCAL_OUT, packetCopy, 0, device);
+                  if (verdict == NF_DROP)
+                    {
+                      NS_LOG_DEBUG ("NF_INET_LOCAL_OUT packet not accepted");
+                      m_dropTrace (ipHeader, packetCopy, DROP_NETFILTER, m_node->GetObject<Ipv4> (), ifaceIndex);
+                      return;
+                    }
+                  packetCopy->RemoveHeader (ipHeader);
+                }
+              // Do not call SendRealOut () (which requires passing in a route)
+              // instead, just send the packet on the interface
+              if (m_netfilter != 0)
+                {
+                  NS_LOG_DEBUG ("NF_INET_POST_ROUTING Hook on node " << m_node->GetId ());
+                  packetCopy->AddHeader (ipHeader);
+                  Callback<uint32_t, Ptr<Packet> > ccb = MakeCallback (&Ipv4Netfilter::NetfilterConntrackConfirm, m_netfilter);
+                  Verdicts_t verdict = (Verdicts_t) m_netfilter->ProcessHook (PF_INET, NF_INET_POST_ROUTING, packetCopy, 0, device, ccb);
+                  if (verdict == NF_DROP)
+                    {
+                      NS_LOG_DEBUG ("NF_INET_POST_ROUTING packet not accepted");
+                      m_dropTrace (ipHeader, packetCopy, DROP_NETFILTER, m_node->GetObject<Ipv4> (), ifaceIndex);
+                      return;
+                    }
+                  packetCopy->RemoveHeader (ipHeader);
+                }
+              // =====================End adaptation for Netfilter ========================
+
               CallTxTrace (ipHeader, packetCopy, m_node->GetObject<Ipv4> (), ifaceIndex);
               outInterface->Send (packetCopy, ipHeader, destination);
               return;
@@ -980,8 +1242,28 @@ no_encap:
       NS_LOG_LOGIC ("Ipv4L3Protocol::Send case 3:  passed in with route");
       ipHeader = BuildHeader (source, destination, protocol, packet->GetSize (), ttl, tos, mayFragment);
       int32_t interface = GetInterfaceForDevice (route->GetOutputDevice ());
-      m_sendOutgoingTrace (ipHeader, packet, interface);
-      SendRealOut (route, packet->Copy (), ipHeader);
+
+      // ========== Adaptation for NetFilter ===============
+      Ptr<Packet> packetCopy = packet->Copy ();
+      if (m_netfilter != 0)
+        {
+          NS_LOG_DEBUG ("NF_INET_LOCAL_OUT Hook on node " << m_node->GetId ());
+          // the LOCAL_OUT hook expects an IP header on the packet, but
+          // SendRealOut () (below) is where it is added.  So add one here.
+          packetCopy->AddHeader (ipHeader);
+          Verdicts_t verdict = (Verdicts_t) m_netfilter->ProcessHook (PF_INET, NF_INET_LOCAL_OUT, packetCopy, 0, device);
+          if (verdict == NF_DROP)
+            {
+              NS_LOG_DEBUG ("NF_INET_LOCAL_OUT packet not accepted");
+              m_dropTrace (ipHeader, packetCopy, DROP_NETFILTER, m_node->GetObject<Ipv4> (), interface);
+              return;
+            }
+          packetCopy->RemoveHeader (ipHeader);
+        }
+      // ========= End of adpatation for NetFilter ==========
+
+      m_sendOutgoingTrace (ipHeader, packetCopy, interface);
+      SendRealOut (route, packetCopy, ipHeader);
       return;
     }
   // 4) packet is not broadcast, and is passed in with a route entry but route->GetGateway is not set (e.g., on-demand)
@@ -999,9 +1281,30 @@ no_encap:
   Ptr<NetDevice> oif (0); // unused for now
   ipHeader = BuildHeader (source, destination, protocol, packet->GetSize (), ttl, tos, mayFragment);
   Ptr<Ipv4Route> newRoute;
+
+  // ============= Adaptation for NetFilter ==================
+  Ptr<Packet> packetCopy = packet->Copy ();
+  if (m_netfilter != 0)
+    {
+      NS_LOG_DEBUG ("NF_INET_LOCAL_OUT Hook on node " << m_node->GetId ());
+      // the LOCAL_OUT hook expects an IP header on the packet, but
+      // SendRealOut () (below) is where it is added.  So add one here.
+
+      packetCopy->AddHeader (ipHeader);
+      Verdicts_t verdict = (Verdicts_t) m_netfilter->ProcessHook (PF_INET, NF_INET_LOCAL_OUT, packetCopy, 0, device);
+      if (verdict == NF_DROP)
+        {
+          NS_LOG_DEBUG ("NF_INET_LOCAL_OUT packet not accepted");
+          m_dropTrace (ipHeader, packet, DROP_NETFILTER, m_node->GetObject<Ipv4> (), 0);
+          return;
+        }
+      packetCopy->RemoveHeader (ipHeader);
+    }
+  // ============= End of adaptation for NetFilter ==============
+
   if (m_routingProtocol != 0)
     {
-      newRoute = m_routingProtocol->RouteOutput (packet, ipHeader, oif, errno_);
+      newRoute = m_routingProtocol->RouteOutput (packetCopy, ipHeader, oif, errno_);
     }
   else
     {
@@ -1010,13 +1313,13 @@ no_encap:
   if (newRoute)
     {
       int32_t interface = GetInterfaceForDevice (newRoute->GetOutputDevice ());
-      m_sendOutgoingTrace (ipHeader, packet, interface);
-      SendRealOut (newRoute, packet->Copy (), ipHeader);
+      m_sendOutgoingTrace (ipHeader, packetCopy, interface);
+      SendRealOut (newRoute, packetCopy, ipHeader);
     }
   else
     {
       NS_LOG_WARN ("No route to host.  Drop.");
-      m_dropTrace (ipHeader, packet, DROP_NO_ROUTE, m_node->GetObject<Ipv4> (), 0);
+      m_dropTrace (ipHeader, packetCopy, DROP_NO_ROUTE, m_node->GetObject<Ipv4> (), 0);
     }
 }
 
@@ -1073,9 +1376,10 @@ Ipv4L3Protocol::BuildHeader (
 void
 Ipv4L3Protocol::SendRealOut (Ptr<Ipv4Route> route,
                              Ptr<Packet> packet,
-                             Ipv4Header const &ipHeader)
+                             Ipv4Header &ipHeader)
 {
   NS_LOG_FUNCTION (this << route << packet << &ipHeader);
+
   if (route == 0)
     {
       NS_LOG_WARN ("No route to host.  Drop.");
@@ -1088,15 +1392,38 @@ Ipv4L3Protocol::SendRealOut (Ptr<Ipv4Route> route,
   Ptr<Ipv4Interface> outInterface = GetInterface (interface);
   NS_LOG_LOGIC ("Send via NetDevice ifIndex " << outDev->GetIfIndex () << " ipv4InterfaceIndex " << interface);
 
+  // ========== Adaptation for NetFilter ===============
+  Ptr<Packet> packetCopy = packet->Copy ();
+  if (m_netfilter != 0)
+    {
+      NS_LOG_DEBUG ("NF_INET_POST_ROUTING Hook on node " << m_node->GetId () );
+
+      packetCopy->AddHeader (ipHeader);
+      Ptr<NetDevice> device = route->GetOutputDevice ();
+      ContinueCallback ccb = MakeCallback (&Ipv4Netfilter::NetfilterConntrackConfirm, m_netfilter);
+      Verdicts_t verdict = (Verdicts_t) m_netfilter->ProcessHook (PF_INET, NF_INET_POST_ROUTING, packetCopy, 0, device, ccb);
+      if (verdict == NF_DROP)
+        {
+          NS_LOG_DEBUG ("NF_INET_POST_ROUTING packet not accepted");
+          m_dropTrace (ipHeader, packetCopy, DROP_NETFILTER, m_node->GetObject<Ipv4> (), interface);
+          return;
+        }
+      packetCopy->RemoveHeader (ipHeader);
+
+    }
+
+
+  // ======== End of adaptation for NetFilter ============
+
   if (!route->GetGateway ().IsEqual (Ipv4Address ("0.0.0.0")))
     {
       if (outInterface->IsUp ())
         {
           NS_LOG_LOGIC ("Send to gateway " << route->GetGateway ());
-          if ( packet->GetSize () + ipHeader.GetSerializedSize () > outInterface->GetDevice ()->GetMtu () )
+          if ( packetCopy->GetSize () + ipHeader.GetSerializedSize () > outInterface->GetDevice ()->GetMtu () )
             {
               std::list<Ipv4PayloadHeaderPair> listFragments;
-              DoFragmentation (packet, ipHeader, outInterface->GetDevice ()->GetMtu (), listFragments);
+              DoFragmentation (packetCopy, ipHeader, outInterface->GetDevice ()->GetMtu (), listFragments);
               for ( std::list<Ipv4PayloadHeaderPair>::iterator it = listFragments.begin (); it != listFragments.end (); it++ )
                 {
                   CallTxTrace (it->second, it->first, m_node->GetObject<Ipv4> (), interface);
@@ -1105,14 +1432,14 @@ Ipv4L3Protocol::SendRealOut (Ptr<Ipv4Route> route,
             }
           else
             {
-              CallTxTrace (ipHeader, packet, m_node->GetObject<Ipv4> (), interface);
-              outInterface->Send (packet, ipHeader, route->GetGateway ());
+              CallTxTrace (ipHeader, packetCopy, m_node->GetObject<Ipv4> (), interface);
+              outInterface->Send (packetCopy, ipHeader, route->GetGateway ());
             }
         }
       else
         {
           NS_LOG_LOGIC ("Dropping -- outgoing interface is down: " << route->GetGateway ());
-          m_dropTrace (ipHeader, packet, DROP_INTERFACE_DOWN, m_node->GetObject<Ipv4> (), interface);
+          m_dropTrace (ipHeader, packetCopy, DROP_INTERFACE_DOWN, m_node->GetObject<Ipv4> (), interface);
         }
     }
   else
@@ -1120,10 +1447,10 @@ Ipv4L3Protocol::SendRealOut (Ptr<Ipv4Route> route,
       if (outInterface->IsUp ())
         {
           NS_LOG_LOGIC ("Send to destination " << ipHeader.GetDestination ());
-          if ( packet->GetSize () + ipHeader.GetSerializedSize () > outInterface->GetDevice ()->GetMtu () )
+          if ( packetCopy->GetSize () + ipHeader.GetSerializedSize () > outInterface->GetDevice ()->GetMtu () )
             {
               std::list<Ipv4PayloadHeaderPair> listFragments;
-              DoFragmentation (packet, ipHeader, outInterface->GetDevice ()->GetMtu (), listFragments);
+              DoFragmentation (packetCopy, ipHeader, outInterface->GetDevice ()->GetMtu (), listFragments);
               for ( std::list<Ipv4PayloadHeaderPair>::iterator it = listFragments.begin (); it != listFragments.end (); it++ )
                 {
                   NS_LOG_LOGIC ("Sending fragment " << *(it->first) );
@@ -1133,14 +1460,14 @@ Ipv4L3Protocol::SendRealOut (Ptr<Ipv4Route> route,
             }
           else
             {
-              CallTxTrace (ipHeader, packet, m_node->GetObject<Ipv4> (), interface);
-              outInterface->Send (packet, ipHeader, ipHeader.GetDestination ());
+              CallTxTrace (ipHeader, packetCopy, m_node->GetObject<Ipv4> (), interface);
+              outInterface->Send (packetCopy, ipHeader, ipHeader.GetDestination ());
             }
         }
       else
         {
           NS_LOG_LOGIC ("Dropping -- outgoing interface is down: " << ipHeader.GetDestination ());
-          m_dropTrace (ipHeader, packet, DROP_INTERFACE_DOWN, m_node->GetObject<Ipv4> (), interface);
+          m_dropTrace (ipHeader, packetCopy, DROP_INTERFACE_DOWN, m_node->GetObject<Ipv4> (), interface);
         }
     }
 }
@@ -1189,6 +1516,7 @@ Ipv4L3Protocol::IpForward (Ptr<Ipv4Route> rtentry, Ptr<const Packet> p, const Ip
   // Forwarding
   Ipv4Header ipHeader = header;
   Ptr<Packet> packet = p->Copy ();
+  Ptr<NetDevice> device = rtentry->GetOutputDevice (); // NetFilter adaptation
   int32_t interface = GetInterfaceForDevice (rtentry->GetOutputDevice ());
   ipHeader.SetTtl (ipHeader.GetTtl () - 1);
   if (ipHeader.GetTtl () == 0)
@@ -1225,7 +1553,7 @@ Ipv4L3Protocol::IpForward (Ptr<Ipv4Route> rtentry, Ptr<const Packet> p, const Ip
                  * So, to support LISP-DHCP, we should modify in this file or modify the creation
                  * of lisp Database?
                  */
-      if (nbEntriesDB)
+      if (nbEntriesDB || lisp->GetPitr ())
         {
           NS_LOG_DEBUG ("Second check to enter in lisp code block passed!");
           Ipv4InterfaceAddress ifAddr = GetAddress (interface, 0);
@@ -1250,6 +1578,21 @@ Ipv4L3Protocol::IpForward (Ptr<Ipv4Route> rtentry, Ptr<const Packet> p, const Ip
     }
 
   m_unicastForwardTrace (ipHeader, packet, interface);
+
+  // ============ Adaptation for NetFilter =============
+  if (m_netfilter != 0)
+    {
+      NS_LOG_DEBUG ("NF_INET_FORWARD Hook on node " << m_node->GetId ());
+      Verdicts_t verdict = (Verdicts_t) m_netfilter->ProcessHook (PF_INET, NF_INET_FORWARD, packet, 0, device);
+      if (verdict == NF_DROP)
+        {
+          NS_LOG_DEBUG ("NF_INET_FORWARD packet not accepted");
+          m_dropTrace (header, packet, DROP_NETFILTER, m_node->GetObject<Ipv4> (), interface);
+          return;
+        }
+    }
+  // ======== End of adaptation for NetFilter ==============
+
   SendRealOut (rtentry, packet, ipHeader);
 }
 
@@ -1257,7 +1600,27 @@ void
 Ipv4L3Protocol::LocalDeliver (Ptr<const Packet> packet, Ipv4Header const&ip, uint32_t iif)
 {
   NS_LOG_FUNCTION (this << packet << &ip << iif);
-  Ptr<Packet> p = packet->Copy (); // need to pass a non-const packet up
+
+  // ========== Adaptation for NetFilter ====================
+  Ptr<Packet> pkt = packet->Copy ();
+  Ptr<NetDevice> device = GetNetDevice (iif);
+  pkt->AddHeader (ip);
+  if (m_netfilter != 0)
+    {
+      NS_LOG_DEBUG ("NF_INET_LOCAL_IN Hook on node " << m_node->GetId ());
+      Callback<uint32_t, Ptr<Packet> > ccb = MakeCallback (&Ipv4Netfilter::NetfilterConntrackConfirm, m_netfilter);
+      Verdicts_t verdict = (Verdicts_t) m_netfilter->ProcessHook (PF_INET, NF_INET_LOCAL_IN, pkt, 0, device, ccb);
+      if (verdict == NF_DROP)
+        {
+          NS_LOG_DEBUG ("NF_INET_LOCAL_IN packet not accepted");
+          m_dropTrace (ip, packet, DROP_NETFILTER, m_node->GetObject<Ipv4> (), iif);
+          return;
+        }
+    }
+  // ========== End of adaptation for NetFilter ================
+
+  Ptr<Packet> p = packet->Copy ();     // need to pass a non-const packet up
+
   Ipv4Header ipHeader = ip;
   // ================================Adaption to support LISP===========================
   NS_LOG_DEBUG ("We are in local delivery on node " << m_node->GetId ());
@@ -1265,12 +1628,12 @@ Ipv4L3Protocol::LocalDeliver (Ptr<const Packet> packet, Ipv4Header const&ip, uin
    * Yue: I think it is better to do a mapTable check here also
    */
   Ptr<LispOverIpv4> lisp = m_node->GetObject<LispOverIpv4> ();
-  int nbEntriesDB = 0;
+  /*int nbEntriesDB = 0;
   if (lisp)
-    {
-      nbEntriesDB = lisp->GetMapTablesV4 ()->GetNMapEntriesLispDataBase ();
-    }
-  if (lisp != 0 and nbEntriesDB != 0)
+        {
+                nbEntriesDB = lisp->GetMapTablesV4 ()->GetNMapEntriesLispDataBase ();
+        }*/
+  if (lisp)       //!= 0 and nbEntriesDB != 0) emeline: for PETR
     {
       NS_LOG_DEBUG (
         "Checking if we need decapsulation on node " << m_node->GetId ());
@@ -1279,20 +1642,106 @@ Ipv4L3Protocol::LocalDeliver (Ptr<const Packet> packet, Ipv4Header const&ip, uin
                  * now we can safely remove it if needed
                  */
       lisp = m_node->GetObject<LispOverIpv4> ();
-      if (lisp->NeedDecapsulation (p, ip))
+      /*----------------------------------------------
+        Packet addressed to xTR for
+        decapsulation.
+        Checks if UDP dest port is LISP_DATA_PORT
+        ----------------------------------------------*/
+      if (lisp->NeedDecapsulation (p, ip, LispOverIp::LISP_DATA_PORT))
         {
           // copy initial packet with outer and inner ip headers
+          NS_LOG_DEBUG ("We need decapsulation");
           Ptr<Packet> lispPacket = p->Copy ();
-          lisp->LispInput (lispPacket, ipHeader);
+          lisp->LispInput (lispPacket, ipHeader, true);
           return;
         }
+      /*----------------------------------------------
+        Control packet encapsulated in ECM header
+        ----------------------------------------------*/
+      else if (lisp->NeedDecapsulation (p, ip, LispOverIp::LISP_SIG_PORT))
+        {
+
+          //TODO: differentiate between MapRegister and MapNotify,and possibly other control msg
+          NS_LOG_DEBUG ("LISP devices receives an ECM encapsulated control message");
+
+          /* Differenciation between MapRegister and SMR */
+          if (lisp->IsMapRegister (p->Copy ()))
+            {
+              NS_LOG_DEBUG ("ECM encapsulated message is MapRegister");
+              /* If device is RTR, set new entry in cache and in database to
+               * record NAT information.
+               * If not RTR, it is a MS, and inner packet needs to be delivered to
+               * MS application
+               */
+              if (lisp->IsRtr ())
+                {
+                  lisp->SetNatedEntry (p->Copy (), ipHeader);
+                }
+            }
+
+          lisp->LispInput (p->Copy (), ipHeader, false);
+          return;
+        }
+      /*----------------------------------------------
+        Control packet addressed to xTR (not encapsulated)
+        ----------------------------------------------*/
       else
         {
           NS_LOG_DEBUG (
             "OK we did not need decapsulation on node " << m_node->GetId ());
+          /*
+           * For NATed device registration process, MS is required to send back
+           * an ECM encapsulated MapNotify to RTR.
+           * However, IETF draft is not precise about the different fields in it (Moreover,
+           * with current implementation, MS has no way of knowing that a certain MapNotify
+           * must be ECM encapsulated).
+           * Therefore, MS will send a classic MapNotify to RTR, and RTR will detect
+           * HERE, and encapsulate it in a DataMapNotify to send back to NATed device.
+           */
+          Ptr<Packet> lispPacket = p->Copy ();
+          Ptr<MapEntry> mapEntry;
+          if (lisp->IsRtr () && lisp->IsMapNotifyForNatedXtr (p, ip, mapEntry))
+            {
+              NS_LOG_DEBUG ("This is a MapNotify msg for NATed device");
+              // This is a non encapsulated MapNotify
+              // Inject it back in IP stack so that it can be encapsulated in
+              // a DataMapNotify and sent back to NATed xTR.
+              ipHeader.SetDestination (Ipv4Address::ConvertFrom (mapEntry->GetXtrLloc ()->GetRlocAddress ()));
+              p->AddHeader (ipHeader);
+
+              Receive
+                (lisp->m_currentDevice,
+                p,
+                lisp->m_ipProtocol,
+                static_cast<Address> (ipHeader.GetSource ()),
+                static_cast<Address> (ipHeader.GetDestination ()),
+                lisp->m_currentPacketType);
+              return; // MapNotify is not delivered to RTR application
+            }
+          /*
+           * For a NATed device to be aware of the remote (P)ITRs with which
+           * it communicates, MapRequests for a NATed LISP-MN EID must be
+           * encapsulated in a Data header and forwarded to the NATed device.
+           */
+          if (lisp->IsRtr () && lisp->IsMapRequestForNatedXtr (p, ip, mapEntry))
+            {
+              NS_LOG_DEBUG ("This is a MapRequest msg for NATed device");
+
+              ipHeader.SetDestination (Ipv4Address::ConvertFrom (mapEntry->GetXtrLloc ()->GetRlocAddress ()));
+              lispPacket->AddHeader (ipHeader); //lispHeader is a copy of the the packet
+
+              Receive
+                (lisp->m_currentDevice,
+                lispPacket,
+                lisp->m_ipProtocol,
+                static_cast<Address> (ipHeader.GetSource ()),
+                static_cast<Address> (ipHeader.GetDestination ()),
+                lisp->m_currentPacketType);
+              // MapRequest is delivered to RTR application, as RTR must answer with a MapReply
+            }
         }
     }
-  NS_LOG_DEBUG ("OK on node " << m_node->GetId () << "-> No decapsulation when local deliver");
+  //NS_LOG_DEBUG("OK on node " << m_node->GetId ()<<"-> No decapsulation when local deliver");
   // ================================Adaption to support LISP===========================
 
   if ( !ipHeader.IsLastFragment () || ipHeader.GetFragmentOffset () != 0 )
@@ -1346,6 +1795,7 @@ Ipv4L3Protocol::LocalDeliver (Ptr<const Packet> packet, Ipv4Header const&ip, uin
             }
           if (subnetDirected == false)
             {
+              NS_LOG_DEBUG ("Destination unreachable port");
               GetIcmp ()->SendDestUnreachPort (ipHeader, copy);
             }
         }
@@ -1402,7 +1852,6 @@ bool
 Ipv4L3Protocol::RemoveAddress (uint32_t i, Ipv4Address address)
 {
   NS_LOG_FUNCTION (this << i << address);
-
   if (address == Ipv4Address::GetLoopback ())
     {
       NS_LOG_WARN ("Cannot remove loopback address.");
@@ -1427,7 +1876,8 @@ Ipv4L3Protocol::SourceAddressSelection (uint32_t interfaceIdx, Ipv4Address dest)
   NS_LOG_FUNCTION (this << interfaceIdx << " " << dest);
   if (GetNAddresses (interfaceIdx) == 1)  // common case
     {
-      NS_LOG_DEBUG ("Only one address at: " << interfaceIdx << ". The selected source address: " << GetAddress (interfaceIdx, 0).GetLocal ());
+      NS_LOG_DEBUG ("Only one address on interface : " << interfaceIdx << " on node " << m_node->GetId () <<
+                    ". The selected source address: " << GetAddress (interfaceIdx, 0).GetLocal ());
       return GetAddress (interfaceIdx, 0).GetLocal ();
     }
   // no way to determine the scope of the destination, so adopt the

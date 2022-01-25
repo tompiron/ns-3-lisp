@@ -10,6 +10,7 @@
 #include <iostream>
 #include <string>
 #include <fstream>
+#include <algorithm>
 
 #include "ns3/log.h"
 #include "ns3/assert.h"
@@ -77,6 +78,23 @@ void LispHelper::Install (Ptr<Node> node) const
     }
   Ptr<LispOverIp> lisp = node->GetObject<LispOverIp> ();
   lisp->SetRlocsList (m_rlocsList);
+
+  /* PxTRs */
+  lisp->SetPetrAddress (m_petrAddress);
+  if (std::find (m_pitrs.begin (), m_pitrs.end (), node->GetId ()) != m_pitrs.end ())
+    {
+      lisp->SetPitr (true);
+    }
+  if (std::find (m_petrs.begin (), m_petrs.end (), node->GetId ()) != m_petrs.end ())
+    {
+      lisp->SetPetr (true);
+    }
+  /* RTRs */
+  if (std::find (m_rtrs.begin (), m_rtrs.end (), node->GetId ()) != m_rtrs.end ())
+    {
+      lisp->SetRtr (true);
+    }
+
   // now we can open the mapping socket
   lisp->OpenLispMappingSocket ();
   /**
@@ -658,6 +676,7 @@ void LispHelper::BuildMapTables2 (std::string localMapTablesConfigFilePath)
   else
     {
       // ERROR
+      NS_LOG_ERROR ("line is" << str);
       NS_LOG_ERROR ("Bad File Format --- File start with <locators> and ends with  </locators>");
       exit (-1);
     }
@@ -708,6 +727,40 @@ void LispHelper::BuildRlocsSet (std::string rlocsListFilePath)
         {
           m_rlocsList.insert (static_cast<Address> (Ipv6Address (vect[1].c_str ())));
         }
+    }
+}
+
+void
+LispHelper::SetPetrAddress (Address petrAddress)
+{
+  m_petrAddress = petrAddress;
+}
+
+void
+LispHelper::SetPitrs (NodeContainer c)
+{
+  for (NodeContainer::Iterator i = c.Begin (); i != c.End (); ++i)
+    {
+      m_pitrs.push_back ((*i)->GetId ());
+    }
+
+}
+
+void
+LispHelper::SetPetrs (NodeContainer c)
+{
+  for (NodeContainer::Iterator i = c.Begin (); i != c.End (); ++i)
+    {
+      m_petrs.push_back ((*i)->GetId ());
+    }
+}
+
+void
+LispHelper::SetRtrs (NodeContainer c)
+{
+  for (NodeContainer::Iterator i = c.Begin (); i != c.End (); ++i)
+    {
+      m_rtrs.push_back ((*i)->GetId ());
     }
 }
 

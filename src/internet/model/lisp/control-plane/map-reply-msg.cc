@@ -24,6 +24,8 @@
 
 namespace ns3 {
 
+NS_LOG_COMPONENT_DEFINE ("MapReplyMsg");
+
 
 MapReplyMsg::MapReplyMsg ()
 {
@@ -102,8 +104,12 @@ void MapReplyMsg::Serialize (uint8_t *buf) const
   buf[position + 7] = (m_nonce >> 0) & 0xffff;
   position += 8;
 
-  m_record->Serialize (buf + position);
+  if (m_record != 0)      //Negative Map Reply case
+    {
+      m_record->Serialize (buf + position);
+    }
 }
+
 Ptr<MapReplyMsg> MapReplyMsg::Deserialize (uint8_t *buf)
 {
   Ptr<MapReplyMsg> msg = Create<MapReplyMsg>();
@@ -136,7 +142,12 @@ Ptr<MapReplyMsg> MapReplyMsg::Deserialize (uint8_t *buf)
 
   msg->SetNonce (nonce);
   position += 8;
-  msg->SetRecord (MapReplyRecord::Deserialize (buf + position));
+
+  if (msg->GetRecordCount () != 0)
+    {
+      msg->SetRecord (MapReplyRecord::Deserialize (buf + position));
+    }
+
   return msg;
 }
 

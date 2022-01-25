@@ -54,7 +54,7 @@ LispOverIpv6Impl::~LispOverIpv6Impl ()
 }
 
 Ptr<Packet>
-LispOverIpv6Impl::LispEncapsulate (Ptr<Packet> packet, uint16_t udpLength, uint16_t udpSrcPort)
+LispOverIpv6Impl::LispEncapsulate (Ptr<Packet> packet, uint16_t udpLength, uint16_t udpSrcPort, uint16_t udpDstPort)
 {
   return packet;
 }

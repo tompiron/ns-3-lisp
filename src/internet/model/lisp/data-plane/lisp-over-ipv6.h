@@ -32,7 +32,7 @@ public:
   virtual
   ~LispOverIpv6 ();
 
-  virtual Ptr<Packet> LispEncapsulate (Ptr<Packet> packet, uint16_t udpLength, uint16_t udpSrcPort) = 0;
+  virtual Ptr<Packet> LispEncapsulate (Ptr<Packet> packet, uint16_t udpLength, uint16_t udpSrcPort, uint16_t udpDstPort) = 0;
 
   virtual LispOverIpv4::MapStatus IsMapForEncapsulation (Ptr<const Packet> p, Ptr<MapEntry> srcMapEntry, Ptr<MapEntry> destMapEntry) const = 0;
 };

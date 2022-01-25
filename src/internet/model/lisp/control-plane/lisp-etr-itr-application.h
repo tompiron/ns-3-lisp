@@ -30,10 +30,13 @@
 #include "ns3/lisp-over-ipv4.h"
 #include "ns3/map-request-msg.h"
 #include "ns3/map-reply-msg.h"
+#include "ns3/info-request-msg.h"
 #include "ns3/map-register-msg.h"
-//#include "ns3/simple-map-tables.h"
 #include "ns3/mapping-socket-msg-header.h"
 #include "ns3/mapping-socket-msg.h"
+#include "ns3/locators-impl.h"
+#include "ns3/string.h"
+
 
 namespace ns3 {
 
@@ -52,6 +55,8 @@ public:
   virtual
   ~LispEtrItrApplication ();
 
+  static Ptr<RandomVariableStream> GetRttModel (void);
+
   void SetMapServerAddresses (std::list<Address> mapServerAddress);
   //TODO: implement this getter. useful for DHCP
   std::list<Address> GetMapServerAddresses (std::list<Address> mapServerAddress);
@@ -64,9 +69,14 @@ public:
   std::list<Ptr<MapRequestMsg> > GetMapRequestMsgList ();
 
   /**
-   * \brief Send a packet
-   */
-  void SendMapRegisters (void);
+    By default, rtr is set to false, meaning that the locators in the message, will
+    be those of the LISP device.
+    If rtr is set to True, this means that all locators will be replaced with the
+    locator of an RTR.
+  */
+  void SendMapRegisters (bool rtr = false);
+
+  void SendInfoRequest (void);
 
   /**
    * \brief send SMR(i.e. Map Request Message with S bit set as 1) to all other xTRs
@@ -120,13 +130,21 @@ public:
 
   void DeleteFromMapReqList (Ptr<EndpointId> eid);
 
-  Ptr<MapRegisterMsg> GenerateMapRegister (Ptr<MapEntry> mapEntry);
+  Ptr<InfoRequestMsg> GenerateInfoRequest (Ptr<MapEntry> mapEntry);
+  /**
+    By default, rtr is set to false, meaning that the locators in the message, will
+    be those of the LISP device.
+    If rtr is set to True, this means that all locators will be replaced with the
+    locator of an RTR.
+  */
+  Ptr<MapRegisterMsg> GenerateMapRegister (Ptr<MapEntry> mapEntry, bool rtr = false);
   Ptr<MapRequestMsg> GenerateMapRequest (Ptr<EndpointId> eid);
   Ptr<MapReplyMsg> GenerateMapReply (Ptr<MapRequestMsg> msg);
   Ptr<MappingSocketMsg> GenerateMapSocketAddMsgBody (Ptr<MapReplyMsg> replyMsg);
   MappingSocketMsgHeader GenerateMapSocketAddMsgHeader (Ptr<MapReplyMsg> replyMsg);
   Ptr<MapReplyMsg> GenerateMapReply4ChangedMapping (Ptr<MapRequestMsg> requestMsg);
-
+  Ptr<MappingSocketMsg> GenerateMapSocketAddMsgBodyForRtr (Address rtrAddress);
+  MappingSocketMsgHeader GenerateMapSocketAddMsgHeaderForRtr (void);
 
   Address GetLocalAddress (Address address);
 
@@ -153,24 +171,34 @@ private:
   Ptr<MapTables> m_mapTablesV4;
   Ptr<MapTables> m_mapTablesV6;
   std::list<Ptr<Locator> > m_mapResolverRlocs;
+  std::list<Ptr<Locator> > m_rtrRlocs;
   // Save SMR before that xTR find the RLOC of the LISP-MN node
   // Upon reception of map reply, check immediately whether can send the saved
   // message. We use simple list data structure. Of course, we can use more
   // efficiency data structure in the future.
   std::list<Ptr<MapRequestMsg> > m_mapReqMsg;
 
-  Ptr<Socket> m_lispMappingSocket;
-  Ptr<Socket> m_socket;
-  Ptr<Socket> m_lispCtlMsgRcvSocket; // Socket that connects map server to etr
-  Ptr<Socket> m_lispCtlMsgRcvSocket6; // Socket that connects map server to etr
+  std::set<Address> m_remoteItrCache; //!< Records all (P)ITRs that send MapRequests to LISP device
+
+  Ptr<RandomVariableStream> m_rttVariable; //!< RV representing the distribution of RTTs between xTRs
+
+  Ptr<Socket> m_lispMappingSocket; //Socket for communication with dataplane
+  Ptr<Socket> m_socket; // emeline: Socket for communication with MS (MapRegister) and MR (MapRequest)
+  Ptr<Socket> m_lispCtlMsgRcvSocket; // Socket to receive Control messages (MapRequest/MapReply)
+  Ptr<Socket> m_lispCtlMsgRcvSocket6; // Socket to receive Control messages (MapRequest/MapReply)
 
   uint32_t m_sent;
   uint32_t m_count;
   Time m_interval;//!< Packet inter-send time
   Address m_lispProtoAddress;
   EventId m_event;
-  uint16_t m_peerPort;
+  uint16_t m_peerPort; // Port of MS
   uint32_t m_seed;
+
+  /// Callbacks for tracing the MapRegister Tx events
+  TracedCallback<Ptr<const Packet> > m_mapRegisterTxTrace;
+  /// Callbacks for tracing the MapNotify Rx events
+  TracedCallback<Ptr<const Packet> > m_mapNotifyRxTrace;
 
 };
 

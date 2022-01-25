@@ -78,7 +78,9 @@ public:
     MAPM_REMOTESTALE, //!< Remote version is stale
     MAPM_NONCEMISMATCH, //!< Received a mismatching nonce
     MAPM_DATABASE_UPDATE, //!< Update a EID-RLOC mapping entry in Database, if the EID is not a key. Add this mapping entry.
-    MAPM_REGISTER //!< For LISP-MN, if DHCP send mapping to database, send map register message again.
+    MAPM_REGISTER, //!< For LISP-MN, if DHCP send mapping to database, send map register message again.
+    MAPM_NAT, //!< Notifies DataPlane if it is NATed or not
+    MAPM_ISREGISTERED //!< Notifies DataPlane if the LISP device is registered to the MDS or not.
   };
 
   /**

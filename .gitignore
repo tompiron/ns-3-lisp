@@ -35,7 +35,8 @@ TAGS
 
 build-dir/
 build/
-
+result_dir/
+scratch/
 
 .cproject
 .settings

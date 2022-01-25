@@ -27,6 +27,7 @@
 #include "lisp-mapping-socket-factory.h"
 #include "lisp-mapping-socket.h"
 #include "simple-map-tables.h"
+#include "ns3/string.h"
 
 namespace ns3 {
 
@@ -46,18 +47,100 @@ const uint8_t LispOverIp::NULL_VERSION_NUM = 0;
 TypeId
 LispOverIp::GetTypeId ()
 {
-  static TypeId tid =
-    TypeId ("ns3::LispOverIp").SetParent<Object> ().SetGroupName ("Lisp").AddAttribute (
-      "SocketList",
-      "The list of sockets associated to this protocol (lisp).",
-      ObjectVectorValue (),
-      MakeObjectVectorAccessor (&LispOverIp::m_sockets),
-      MakeObjectVectorChecker<LispMappingSocket> ());
+  static TypeId tid = TypeId ("ns3::LispOverIp")
+    .SetParent<Object> ()
+    .SetGroupName ("Lisp")
+    .AddAttribute (
+    "SocketList",
+    "The list of sockets associated to this protocol (lisp).",
+    ObjectVectorValue (),
+    MakeObjectVectorAccessor (&LispOverIp::m_sockets),
+    MakeObjectVectorChecker<LispMappingSocket> ())
+    .AddAttribute (
+    "RttVariable",
+    "The random variable representing the distribution of RTTs between xTRs)",
+    StringValue ("ns3::ConstantRandomVariable[Constant=0]"),
+    MakePointerAccessor (&LispOverIp::m_rttVariable),
+    MakePointerChecker<RandomVariableStream> ())
+    .AddAttribute (
+    "PxtrStretchVariable",
+    "The random variable representing the delay stretch introduced by the use of proxies)",
+    StringValue ("ns3::ConstantRandomVariable[Constant=0]"),
+    MakePointerAccessor (&LispOverIp::m_pxtrStretchVariable),
+    MakePointerChecker<RandomVariableStream> ())
+    .AddAttribute (
+    "RtrVariable",
+    "The random variable representing the delay stretch introduced by the use of an RTR)",
+    StringValue ("ns3::ConstantRandomVariable[Constant=0]"),
+    MakePointerAccessor (&LispOverIp::m_rtrVariable),
+    MakePointerChecker<RandomVariableStream> ());
+
   return tid;
 }
 
+Ptr<RandomVariableStream>
+LispOverIp::GetRttModel (void)
+{
+  Ptr<EmpiricalRandomVariable> rtt = CreateObject<EmpiricalRandomVariable> ();
+  rtt->CDF ( 0.0,  0.0);
+  rtt->CDF ( 0.025,  0.1);
+  rtt->CDF ( 0.048,  0.2);
+  rtt->CDF ( 0.060,  0.27);
+  rtt->CDF ( 0.080,  0.29);
+  rtt->CDF ( 0.105,  0.4);
+  rtt->CDF ( 0.132,  0.52);
+  rtt->CDF ( 0.160,  0.58);
+  rtt->CDF ( 0.190,  0.65);
+  rtt->CDF ( 0.265,  0.7);
+  rtt->CDF ( 0.300,  0.8);
+  rtt->CDF ( 0.340,  0.9);
+  rtt->CDF ( 0.400,  0.95);
+  rtt->CDF ( 0.500,  0.99);
+  rtt->CDF ( 0.650,  0.9999);
+  rtt->CDF ( 1.0,  1.0);
+
+  return rtt;
+}
+
+Ptr<RandomVariableStream>
+LispOverIp::GetPxtrStretchModel (void)
+{
+  Ptr<EmpiricalRandomVariable> pxtr = CreateObject<EmpiricalRandomVariable> ();
+  pxtr->CDF ( -0.25,  0.05263158);
+  pxtr->CDF ( -0.14,  0.10526316);
+  pxtr->CDF ( -0.02,  0.15789474);
+  pxtr->CDF ( 0.0,  0.21052632);
+  pxtr->CDF ( 0.1,  0.26315789);
+  pxtr->CDF ( 0.19,  0.31578947);
+  pxtr->CDF ( 0.21,  0.36842105);
+  pxtr->CDF ( 0.27,  0.42105263);
+  pxtr->CDF ( 0.36,  0.47368421);
+  pxtr->CDF ( 0.39,  0.52631579);
+  pxtr->CDF ( 0.45, 0.57894737);
+  pxtr->CDF ( 0.46, 0.63157895);
+  pxtr->CDF ( 0.48,  0.68421053);
+  pxtr->CDF ( 0.49,  0.73684211);
+  pxtr->CDF ( 0.51,  0.78947368);
+  pxtr->CDF ( 0.57,  0.84210526);
+  pxtr->CDF ( 0.59,  0.89473684);
+  pxtr->CDF ( 0.6,  0.94736842);
+  pxtr->CDF ( 0.66,  1.0);
+
+  return pxtr;
+}
+
+Ptr<RandomVariableStream>
+LispOverIp::GetRtrModel (void)
+{
+  Ptr<UniformRandomVariable> rtr = CreateObject<UniformRandomVariable> ();
+  rtr->SetAttribute ("Min", DoubleValue (0.09));
+  rtr->SetAttribute ("Max", DoubleValue (0.11));
+
+  return rtr;
+}
+
 LispOverIp::LispOverIp (Ptr<LispStatistics> statisticsForIpv4,
-                        Ptr<LispStatistics> statisticsForIpv6)
+                        Ptr<LispStatistics> statisticsForIpv6) : m_pitr (false), m_petr (false), m_nated (false), m_rtr (false), m_registered (false)
 {
   NS_LOG_FUNCTION (this);
   NS_ASSERT (statisticsForIpv4 && statisticsForIpv6);
@@ -73,7 +156,7 @@ LispOverIp::SetLispStatistics (Ptr<LispStatistics> statisticsV4,
   m_statisticsForIpv6 = statisticsV6;
 }
 
-LispOverIp::LispOverIp ()
+LispOverIp::LispOverIp () : m_pitr (false), m_petr (false), m_nated (false), m_rtr (false), m_registered (false)
 {
   /**
    * Yue gives some explanation:
@@ -213,6 +296,32 @@ LispOverIp::CacheLookup (Address const &eidAddress) const
   return 0;
 }
 
+void
+LispOverIp::DatabaseDelete (Address const &eidAddress)
+{
+  if (Ipv4Address::IsMatchingType (eidAddress))
+    {
+      m_mapTablesIpv4->DatabaseDelete (eidAddress);
+    }
+  else if (Ipv6Address::IsMatchingType (eidAddress))
+    {
+      m_mapTablesIpv6->DatabaseDelete (eidAddress);
+    }
+}
+
+void
+LispOverIp::CacheDelete (Address const &eidAddress)
+{
+  if (Ipv4Address::IsMatchingType (eidAddress))
+    {
+      m_mapTablesIpv4->CacheDelete (eidAddress);
+    }
+  else if (Ipv6Address::IsMatchingType (eidAddress))
+    {
+      m_mapTablesIpv6->CacheDelete (eidAddress);
+    }
+}
+
 Ptr<Locator>
 LispOverIp::SelectDestinationRloc (Ptr<const MapEntry> mapEntry) const
 {
@@ -299,11 +408,21 @@ LispOverIp::HandleMapSockRead (Ptr<Socket> socket)
           NS_LOG_DEBUG (
             "ADD Message received on lisp (" << msg->GetEndPointId ()->Print () << ") \n" << msg->GetLocators ()->Print ());
           Ptr<EndpointId> eid = msg->GetEndPointId ();
+
+          /* Check if wild card entry. If so, this means the LISP device is NATed */
+          if (eid->GetIpv4Mask ().IsEqual (Ipv4Mask ("/0")))
+            {
+              NS_LOG_DEBUG ("Wild card entry detected -> LISP device is NATed");
+              SetNated (true);
+
+              // Delete any previous entry in the cache
+              m_mapTablesIpv4->WipeCache ();
+            }
+
           Ptr<MapEntry> mapEntry = Create<MapEntryImpl> ();
           Ptr<Locators> locators;
           mapEntry->SetEidPrefix (eid);
-          if ((int) sockMsgHdr.GetMapFlags ()
-              & (int) LispMappingSocket::MAPF_NEGATIVE)
+          if ((int) sockMsgHdr.GetMapFlags () & (int) LispMappingSocket::MAPF_NEGATIVE)
             {
               NS_LOG_DEBUG ("MAP ENTRY is negative!");
               mapEntry->setIsNegative (1);
@@ -349,6 +468,32 @@ LispOverIp::HandleMapSockRead (Ptr<Socket> socket)
         {
 
         }
+      else if (sockMsgHdr.GetMapType ()
+               == static_cast<uint16_t> (LispMappingSocket::MAPM_NAT))
+        {
+          NS_LOG_DEBUG ("MAPM_NAT received in LispOverIp: SetNated(false)");
+          SetNated (false);
+          /* Remove wild card entry if any */
+          m_mapTablesIpv4->CacheDelete (Ipv4Address ("0.0.0.0"));
+        }
+      else if (sockMsgHdr.GetMapType ()
+               == static_cast<uint16_t> (LispMappingSocket::MAPM_ISREGISTERED))
+        {
+          NS_LOG_DEBUG ("MAPM_ISREGISTERED received in LispOverIp");
+          //MAPA_EID used to say that LISP device is registered.
+          //MAPA_EIDMASK is used to say that LISP device is NOT registered.
+          if ( (int) sockMsgHdr.GetMapAddresses () == (int) LispMappingSocket::MAPA_EID)
+            {
+              NS_LOG_DEBUG ("LISP device is registered to the MDS");
+              m_registered = true;
+            }
+          else
+            {
+              NS_LOG_DEBUG ("LISP device is NOT registered to the MDS");
+              m_registered = false;
+            }
+
+        }
       else if (sockMsgHdr.GetMapType () == static_cast<uint16_t> (LispMappingSocket::MAPM_DATABASE_UPDATE))
         {
           /**
@@ -371,6 +516,18 @@ LispOverIp::HandleMapSockRead (Ptr<Socket> socket)
           Ptr<MapEntry> mapEntry = Create<MapEntryImpl> ();
           Ptr<Locators> locators = msg->GetLocators ();
           mapEntry->SetEidPrefix (eid);
+          /* MAPM_DATABASE_UPDATE is only sent dy DHCP client when receiving a new LRLOC.
+           *
+           * We need an additional MapEntry in database for encapsulation (in case of NAT).
+           * This additional MapEntry is equivalent to the config file where we add:
+           * <if-address-v4>  192.168.1.1 </if-address-v4>
+           * <entry>
+           * <eid-v4>  192.168.1.0 255.255.255.0 0 </eid-v4>
+           * <rloc-v4> 192.168.1.1 200 30  1 </rloc-v4>
+           * </entry>
+           */
+          Ptr<MapEntry> mapEntryEncap = Create<MapEntryImpl> ();
+
           if ((int) sockMsgHdr.GetMapFlags ()
               & (int) LispMappingSocket::MAPF_NEGATIVE)
             {
@@ -381,7 +538,21 @@ LispOverIp::HandleMapSockRead (Ptr<Socket> socket)
             {
               mapEntry->setIsNegative (0);
               mapEntry->SetLocators (locators);
+
+              mapEntryEncap->SetEidPrefix (
+                Create<EndpointId> (locators->GetLocatorByIdx (0)->GetRlocAddress (), Ipv4Mask ("/32")));
+              mapEntryEncap->setIsNegative (0);
+              mapEntryEncap->SetLocators (locators);
             }
+          /* Get current (MN EID -> LRLOC) mapping */
+          Ptr<MapEntry> curEidMapEntry = LispOverIp::DatabaseLookup (eid->GetEidAddress ());
+          if (curEidMapEntry != 0)
+            {
+              Address curRlocAddr = curEidMapEntry->GetLocators ()->GetLocatorByIdx (0)->GetRlocAddress ();
+              /* Erase previous (LRLOC -> LRLOC) mapping */
+              LispOverIp::DatabaseDelete (curRlocAddr);
+            }
+
           if (eid->IsIpv4 ())
             {
               //TODO: to verify if map data structure supports add (or update) manipulation.
@@ -390,9 +561,19 @@ LispOverIp::HandleMapSockRead (Ptr<Socket> socket)
               // 07-10-2017: DHCP client should guarantee that the newly assigned @IP is different from previous one
               // In the case of cache update, we should first delete the previous one containing EID-prefix
               // This work is done by SetEntry method!
-              m_mapTablesIpv4->SetEntry (eid->GetEidAddress (),
-                                         eid->GetIpv4Mask (), mapEntry,
-                                         MapTables::IN_DATABASE);
+
+              /* Add new (MN EID -> LRLOC) mapping */
+              m_mapTablesIpv4->SetEntry (
+                eid->GetEidAddress (),
+                eid->GetIpv4Mask (),
+                mapEntry,
+                MapTables::IN_DATABASE);
+              /* Add new (LRLOC -> LRLOC) mapping */
+              m_mapTablesIpv4->SetEntry (
+                mapEntryEncap->GetEidPrefix ()->GetEidAddress (),
+                mapEntryEncap->GetEidPrefix ()->GetIpv4Mask (),
+                mapEntryEncap,
+                MapTables::IN_DATABASE);
               NS_LOG_DEBUG (
                 "Ipv4 Map Entry IPv4 (Received from DHCP client) has been saved in database by LispOverIp");
               NS_LOG_DEBUG ("After message from DHCP to LISP, LISP Database now: \n" << *(LispOverIp::GetMapTablesV4 ()));
@@ -562,6 +743,28 @@ Ptr<MapTables>
 LispOverIp::GetMapTablesV6 (void) const
 {
   return m_mapTablesIpv6;
+}
+
+Ptr<Packet>
+LispOverIp::PrependEcmHeader (Ptr<Packet> packet, LispOverIp::EcmEncapsulation ecm)
+{
+  NS_ASSERT (packet);
+  LispEncapsulatedControlMsgHeader ecmHeader = LispEncapsulatedControlMsgHeader ();
+
+  if (ecm == LispOverIp::ECM_XTR)
+    {
+      ecmHeader.SetR (1);
+      ecmHeader.SetN (0);
+    }
+  else
+    {
+      ecmHeader.SetR (0);
+      ecmHeader.SetN (1);
+    }
+  ecmHeader.SetS (0);
+
+  packet->AddHeader (ecmHeader);
+  return packet;
 }
 
 Ptr<Packet>
@@ -740,6 +943,72 @@ bool LispOverIp::IsMapVersionNumberNewer (uint16_t vnum2, uint16_t vnum1)
     {
       return false;
     }
+}
+
+void
+LispOverIp::SetPetrAddress (Address address)
+{
+  m_petrAddress = address;
+}
+
+Address
+LispOverIp::GetPetrAddress (void)
+{
+  return m_petrAddress;
+}
+
+void
+LispOverIp::SetPetr (bool petr)
+{
+  m_petr = petr;
+}
+
+bool
+LispOverIp::GetPetr (void)
+{
+  return m_petr;
+}
+
+void
+LispOverIp::SetPitr (bool pitr)
+{
+  m_pitr = pitr;
+}
+
+bool
+LispOverIp::GetPitr (void)
+{
+  return m_pitr;
+}
+
+void
+LispOverIp::SetNated (bool nated)
+{
+  m_nated = nated;
+}
+
+bool
+LispOverIp::IsNated (void)
+{
+  return m_nated;
+}
+
+void
+LispOverIp::SetRtr (bool rtr)
+{
+  m_rtr = rtr;
+}
+
+bool
+LispOverIp::IsRtr (void)
+{
+  return m_rtr;
+}
+
+bool
+LispOverIp::IsRegistered (void)
+{
+  return m_registered;
 }
 
 

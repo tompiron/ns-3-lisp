@@ -80,9 +80,9 @@ TrafficControlLayer::NetDeviceInfo::NetDeviceInfo (Ptr<QueueDisc> rootQueueDisc,
                                                    QueueDiscVector queueDiscsToWake,
                                                    SelectQueueCallback selectQueueCallback)
   : m_rootQueueDisc (rootQueueDisc),
-    m_ndqi (ndqi),
-    m_queueDiscsToWake (queueDiscsToWake),
-    m_selectQueueCallback (selectQueueCallback)
+  m_ndqi (ndqi),
+  m_queueDiscsToWake (queueDiscsToWake),
+  m_selectQueueCallback (selectQueueCallback)
 {
 }
 
@@ -104,7 +104,7 @@ TrafficControlLayer::DoInitialize (void)
       if (ndi->second.m_rootQueueDisc)
         {
           // set the wake callbacks on netdevice queues
-           if (ndi->second.m_rootQueueDisc->GetWakeMode () == QueueDisc::WAKE_ROOT)
+          if (ndi->second.m_rootQueueDisc->GetWakeMode () == QueueDisc::WAKE_ROOT)
             {
               for (uint32_t i = 0; i < devQueueIface->GetNTxQueues (); i++)
                 {
@@ -119,7 +119,7 @@ TrafficControlLayer::DoInitialize (void)
               for (uint32_t i = 0; i < devQueueIface->GetNTxQueues (); i++)
                 {
                   devQueueIface->GetTxQueue (i)->SetWakeCallback (MakeCallback (&QueueDisc::Run,
-                                                                  ndi->second.m_rootQueueDisc->GetQueueDiscClass (i)->GetQueueDisc ()));
+                                                                                ndi->second.m_rootQueueDisc->GetQueueDiscClass (i)->GetQueueDisc ()));
                   ndi->second.m_queueDiscsToWake.push_back (ndi->second.m_rootQueueDisc->GetQueueDiscClass (i)->GetQueueDisc ());
                 }
             }
@@ -207,7 +207,7 @@ TrafficControlLayer::SetRootQueueDiscOnDevice (Ptr<NetDevice> device, Ptr<QueueD
     }
 
   NS_ASSERT_MSG (ndi->second.m_rootQueueDisc == 0, "Cannot install a root queue disc on a "
-                  << "device already having one. Delete the existing queue disc first.");
+                 << "device already having one. Delete the existing queue disc first.");
   ndi->second.m_rootQueueDisc = qDisc;
 }
 
@@ -305,7 +305,7 @@ TrafficControlLayer::Receive (Ptr<NetDevice> device, Ptr<const Packet> p,
         }
     }
 
-  if (! found)
+  if (!found)
     {
       NS_FATAL_ERROR ("Handler for protocol " << p << " and device " << device <<
                       " not found. It isn't forwarded up; it dies here.");
@@ -342,7 +342,6 @@ TrafficControlLayer::Send (Ptr<NetDevice> device, Ptr<QueueDiscItem> item)
     }
 
   NS_ASSERT (txq < devQueueIface->GetNTxQueues ());
-
   if (ndi->second.m_rootQueueDisc == 0)
     {
       // The device has no attached queue disc, thus add the header to the packet and

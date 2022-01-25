@@ -43,12 +43,30 @@ public:
   uint32_t GetLocsStatusBits (void) const;
   virtual std::string Print (void) const = 0;
   void SetEidPrefix (Ptr<EndpointId> prefix);
-  Ptr<EndpointId> GetEidPrefix (void);
+  Ptr<EndpointId> GetEidPrefix (void) const;
+
+  void SetTranslatedPort (uint16_t port);
+  uint16_t GetTranslatedPort (void) const;
+  void SetRtrRloc (Ptr<Locator> rloc);
+  Ptr<Locator> GetRtrRloc (void) const;
+  void SetXtrLloc (Ptr<Locator> rloc);
+  Ptr<Locator> GetXtrLloc (void) const;
+
+  bool IsNatedEntry (void) const;
 
 protected:
   // TODO add a possible lock to the entry
   Ptr<EndpointId> m_eidPrefix;
   Ptr<Locators> m_locators;
+
+  /* The following members are used only by RTRs to record details about
+   * NATed devices, so as to be able to forward packets to them through
+   * NAT.
+   * If EID is NATed, m_locators will actually be the translated global address used by NAT (in cache)
+   */
+  uint16_t m_port; // Translated global port used by NAT
+  Ptr<Locator> m_rtrRloc; //The RTR own address, that was used in the outer header of the ECMed MapRegister
+  Ptr<Locator> m_xTRLocalRloc; // The local xTR RLOC, which is NATed
 
 private:
   // Mapping flags

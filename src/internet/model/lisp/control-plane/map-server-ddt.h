@@ -26,10 +26,13 @@
 #include "ns3/lisp-over-ip.h"
 #include "ns3/map-request-msg.h"
 #include "ns3/map-register-msg.h"
+#include "ns3/info-request-msg.h"
 #include "ns3/map-notify-msg.h"
 #include "ns3/event-id.h"
 
 namespace ns3 {
+
+class LispEtrItrApplication;
 
 class MapServerDdt : public MapServer
 {
@@ -39,6 +42,11 @@ public:
   ~MapServerDdt ();
 
   static TypeId GetTypeId (void);
+
+  /* This function returns a RandomVariableStream that models
+   * the response time of the Mapping Distribution System
+   */
+  static Ptr<RandomVariableStream> GetMdsModel (void);
 
   Ptr<MapTables> GetMapTablesV4 ();
 
@@ -66,10 +74,11 @@ private:
 
   virtual void PopulateDatabase (Ptr<MapRegisterMsg> msg);
 
+  virtual Ptr<MapReplyMsg> GenerateNegMapReply (Ptr<MapRequestMsg> requestMsg);
+  virtual Ptr<InfoRequestMsg> GenerateInfoReplyMsg (Ptr<InfoRequestMsg> msg, uint16_t port, Address address, Address msAddress);
+
   Ptr<MapTables> m_mapTablesv4;
   Ptr<MapTables> m_mapTablesv6;
-
-  Time m_searchTime;                        //!< Time consumed for EID-RLOC mapping search
 
 };
 

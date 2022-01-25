@@ -332,7 +332,6 @@ DhcpClient::LinkStateHandler (void)
                          * ATTENTION: It seems that AdHoc has no link change... I never find this
                          * handler is triggered until now if using Adhoc wifi mode.
                          */
-      NS_LOG_INFO ("Link up at " << Simulator::Now ().GetSeconds ());
       InitializeAddress ();
       CreateSocket ();
       Boot ();
@@ -625,6 +624,7 @@ DhcpClient::AcceptAck (DhcpHeader header, Address from)
       Ipv4Address currIpAddr = ipv4->GetAddress (ifIndex, i).GetLocal ();
       if (currIpAddr == m_myAddress or currIpAddr == Ipv4Address ("0.0.0.0"))
         {
+          NS_LOG_DEBUG ("i: " << i);
           ipv4->RemoveAddress (ifIndex, i);
           i--;
           //TODO: I don't know the negative impact if removing the break...
@@ -700,8 +700,8 @@ DhcpClient::AcceptAck (DhcpHeader header, Address from)
   // EID-RLOC mapping to lispOverIp.
   if (DhcpClient::IsLispCompatible () and m_trigLisp)
     {
-      NS_LOG_DEBUG (
-        "A different assigned IP address! LISP processing should be called...");
+      NS_LOG_DEBUG ("A different assigned IP address! LISP processing should be called...");
+      /* New entry in database: MN EID -> OfferedAddress (LRLOC) */
       DhcpClient::LispDataBaseManipulation (DhcpClient::GetEid ());
     }
   m_offerList.clear ();
