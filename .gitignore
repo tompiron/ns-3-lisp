@@ -1,0 +1,40 @@
+# Object files
+*.o
+# script
+import.sh
+# Vi(m) swap files
+.*.swp
+
+# CScope file
+cscope.out
+
+# Compiled executable
+lispd
+
+# Local configuration file
+lispd.conf
+
+#temp kate files
+*~
+
+#kdev
+*.kdev4
+
+# so files
+*.so
+
+#
+*.png
+*.pdf
+*.dia
+*.seqdiag
+*.pcap
+*.out
+
+# 
+build/
+testpy-output/
+waf-tools/
+
+/Debug/
+
