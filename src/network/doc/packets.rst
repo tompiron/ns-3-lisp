@@ -247,7 +247,9 @@ Packet API can be used to add or remove such headers.::
   void AddHeader (const Header & header);
   /**
    * Deserialize and remove the header from the internal buffer.
-   * This method invokes Header::Deserialize.
+   *
+   * This method invokes Header::Deserialize (begin) and should be used for
+   * fixed-length headers.
    *
    * \param header a reference to the header to remove from the internal buffer.
    * \returns the number of bytes removed from the packet.
@@ -275,6 +277,28 @@ For instance, here are the typical operations to add and remove a UDP header.::
  packet->RemoveHeader (udpHeader); 
  // Read udpHeader fields as needed
 
+If the header is variable-length, then another variant of RemoveHeader() is
+needed::
+
+  /**
+   * \brief Deserialize and remove the header from the internal buffer.
+   *
+   * This method invokes Header::Deserialize (begin, end) and should be
+   * used for variable-length headers (where the size is determined somehow
+   * by the caller).
+   *
+   * \param header a reference to the header to remove from the internal buffer.
+   * \param size number of bytes to deserialize
+   * \returns the number of bytes removed from the packet.
+   */
+  uint32_t RemoveHeader (Header &header, uint32_t size);
+
+In this case, the caller must figure out and provide the right 'size' as
+an argument (the Deserialization routine may not know when to stop).  An
+example of this type of header would be a series of Type-Length-Value (TLV)
+information elements, where the ending point of the series of TLVs can
+be deduced from the packet length.
+
 Adding and removing Tags
 ++++++++++++++++++++++++
 
@@ -290,9 +314,6 @@ and applies a ByteTag to the segment, each byte of the TCP segment will be
 tagged. However, if the next layer down inserts an IPv4 header, this ByteTag
 will not cover those bytes.  The converse is true for the PacketTag; it covers a
 packet despite the operations on it.
-
-PacketTags are limited in size to 20 bytes. This is a modifiable compile-time
-constant in ``src/network/model/packet-tag-list.h``. ByteTags have no such restriction.
 
 Each tag type must subclass ``ns3::Tag``, and only one instance of
 each Tag type may be in each tag list. Here are a few differences in the
@@ -314,10 +335,6 @@ behavior of packet tags and byte tags.
   once a byte tag is added, it can only be removed by stripping all byte tags
   from the packet. Removing one of possibly multiple byte tags is not supported
   by the current API.  
-
-As of *ns-3.5* and later, Tags are not serialized and deserialized to a buffer when
-``Packet::Serialize ()`` and ``Packet::Deserialize ()`` are called; this is an
-open bug.
 
 If a user wants to take an existing packet object and reuse it as a new packet,
 he or she should remove all byte tags and packet tags before doing so. An

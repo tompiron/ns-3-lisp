@@ -41,18 +41,25 @@ cmd = ns.core.CommandLine()
 cmd.nCsma = 3
 cmd.verbose = "True"
 cmd.nWifi = 3
+cmd.tracing = "False"
+
 cmd.AddValue("nCsma", "Number of \"extra\" CSMA nodes/devices")
 cmd.AddValue("nWifi", "Number of wifi STA devices")
 cmd.AddValue("verbose", "Tell echo applications to log if true")
+cmd.AddValue("tracing", "Enable pcap tracing")
 
 cmd.Parse(sys.argv)
 
 nCsma = int(cmd.nCsma)
 verbose = cmd.verbose
 nWifi = int(cmd.nWifi)
+tracing = cmd.tracing
 
+# The underlying restriction of 18 is due to the grid position
+# allocator's configuration; the grid layout will exceed the
+# bounding box if more than 18 nodes are provided.
 if nWifi > 18:
-	print "Number of wifi nodes "+ str(nWifi)+ " specified exceeds the mobility bounding box"
+	print ("nWifi should be 18 or less; otherwise grid layout exceeds the bounding box")
 	sys.exit(1)
 
 if verbose == "True":
@@ -83,7 +90,7 @@ wifiStaNodes.Create(nWifi)
 wifiApNode = p2pNodes.Get(0)
 
 channel = ns.wifi.YansWifiChannelHelper.Default()
-phy = ns.wifi.YansWifiPhyHelper.Default()
+phy = ns.wifi.YansWifiPhyHelper()
 phy.SetChannel(channel.Create())
 
 wifi = ns.wifi.WifiHelper()
@@ -144,9 +151,11 @@ ns.internet.Ipv4GlobalRoutingHelper.PopulateRoutingTables()
 
 ns.core.Simulator.Stop(ns.core.Seconds(10.0))
 
-pointToPoint.EnablePcapAll ("third")
-phy.EnablePcap ("third", apDevices.Get (0))
-csma.EnablePcap ("third", csmaDevices.Get (0), True)
+if tracing == "True":
+	phy.SetPcapDataLinkType(phy.DLT_IEEE802_11_RADIO)
+	pointToPoint.EnablePcapAll ("third")
+	phy.EnablePcap ("third", apDevices.Get (0))
+	csma.EnablePcap ("third", csmaDevices.Get (0), True)
 
 ns.core.Simulator.Run()
 ns.core.Simulator.Destroy()

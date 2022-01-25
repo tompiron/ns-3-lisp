@@ -187,8 +187,52 @@ public:
    */
   virtual void SetIsMulticast (bool multicast);
 
+  /**
+   * Write packet data to device.
+   * \param buffer The data.
+   * \param length The data length.
+   * \return The size of data written.
+   */
+  virtual ssize_t Write (uint8_t *buffer, size_t length);
+
 protected:
+  /**
+   * Method Initialization for start and stop attributes.
+   */
+  virtual void DoInitialize (void);
+  
   virtual void DoDispose (void);
+
+  /**
+   * Get the associated file descriptor.
+   * \return the associated file descriptor
+   */
+  int GetFileDescriptor (void) const;
+
+  /**
+   * Allocate packet buffer.
+   */
+  virtual uint8_t* AllocateBuffer(size_t len);
+
+  /**
+   * Free the given packet buffer.
+   */
+  virtual void FreeBuffer (uint8_t* buf);
+
+  /**
+   * Callback to invoke when a new frame is received
+   */
+  void ReceiveCallback (uint8_t *buf, ssize_t len);
+
+  /**
+   * Mutex to increase pending read counter.
+   */
+  SystemMutex m_pendingReadMutex;
+
+  /**
+   * Number of packets that were received and scheduled for read but not yet read.
+   */
+  std::queue< std::pair<uint8_t *, ssize_t> > m_pendingQueue;
 
 private:
   /**
@@ -210,9 +254,20 @@ private:
   void StopDevice (void);
 
   /**
-   * Callback to invoke when a new frame is received
+   * Create the FdReader object
+   * \return the created FdReader object
    */
-  void ReceiveCallback (uint8_t *buf, ssize_t len);
+  virtual Ptr<FdReader> DoCreateFdReader (void);
+
+  /**
+   * Complete additional actions, if any, to spin up down the device
+   */
+  virtual void DoFinishStartingDevice (void);
+
+  /**
+   * Complete additional actions, if any, to tear down the device
+   */
+  virtual void DoFinishStoppingDevice (void);
 
   /**
    * Forward the frame to the appropriate callback for processing
@@ -261,7 +316,7 @@ private:
   /**
    * Reader for the file descriptor.
    */
-  Ptr<FdNetDeviceFdReader> m_fdReader;
+  Ptr<FdReader> m_fdReader;
 
   /**
    * The net device mac address.
@@ -269,7 +324,7 @@ private:
   Mac48Address m_address;
 
   /**
-   * The typ of encapsulation of the received/transmited frames.
+   * The type of encapsulation of the received/transmitted frames.
    */
   EncapsulationMode m_encapMode;
 
@@ -297,19 +352,9 @@ private:
   bool m_isMulticast;
 
   /**
-   * Number of packets that were received and scheduled for read but not yeat read.
-   */
-  std::queue< std::pair<uint8_t *, ssize_t> > m_pendingQueue;
-
-  /**
-   * Maximum number of packets that can be received and scheduled for read but not yeat read.
+   * Maximum number of packets that can be received and scheduled for read but not yet read.
    */
   uint32_t m_maxPendingReads;
-
-  /**
-   * Mutex to increase pending read counter.
-   */
-  SystemMutex m_pendingReadMutex;
 
   /**
    * Time to start spinning up the device

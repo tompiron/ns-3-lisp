@@ -27,7 +27,6 @@
 #include "ns3/packet.h"
 #include "ns3/mesh-point-device.h"
 #include "ns3/wifi-net-device.h"
-#include "ns3/mesh-point-device.h"
 #include "ns3/mesh-wifi-interface-mac.h"
 #include "ns3/random-variable-stream.h"
 #include "airtime-metric.h"
@@ -93,7 +92,7 @@ HwmpProtocol::GetTypeId ()
                     MakeTimeChecker ()
                     )
     .AddAttribute ( "Dot11MeshHWMPactiveRootTimeout",
-                    "Lifetime of poractive routing information",
+                    "Lifetime of proactive routing information",
                     TimeValue (MicroSeconds (1024*5000)),
                     MakeTimeAccessor (
                       &HwmpProtocol::m_dot11MeshHWMPactiveRootTimeout),
@@ -114,7 +113,7 @@ HwmpProtocol::GetTypeId ()
                     MakeTimeChecker ()
                     )
     .AddAttribute ( "Dot11MeshHWMPrannInterval",
-                    "Lifetime of poractive routing information",
+                    "Lifetime of proactive routing information",
                     TimeValue (MicroSeconds (1024*5000)),
                     MakeTimeAccessor (
                       &HwmpProtocol::m_dot11MeshHWMPrannInterval),
@@ -142,7 +141,7 @@ HwmpProtocol::GetTypeId ()
                     MakeUintegerChecker<uint8_t> (1)
                     )
     .AddAttribute ( "UnicastDataThreshold",
-                    "Maximum number ofbroadcast receivers, when we send a broadcast as a chain of unicasts",
+                    "Maximum number of broadcast receivers, when we send a broadcast as a chain of unicasts",
                     UintegerValue (1),
                     MakeUintegerAccessor (
                       &HwmpProtocol::m_unicastDataThreshold),
@@ -922,7 +921,7 @@ HwmpProtocol::GetPerrReceivers (std::vector<FailedDestination> failedDest)
           retval.push_back (precursors[j]);
         }
     }
-  //Check if we have dublicates in retval and precursors:
+  //Check if we have duplicates in retval and precursors:
   for (unsigned int i = 0; i < retval.size (); i++)
     {
       for (unsigned int j = i+1; j < retval.size (); j++)

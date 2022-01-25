@@ -637,7 +637,7 @@ BatteryLifetimeTest::CreateLoadProfiles (void)
 int
 main (int argc, char **argv)
 {
-  CommandLine cmd;
+  CommandLine cmd (__FILE__);
   cmd.Parse (argc, argv);
   
   NS_LOG_DEBUG ("Constant load run.");
@@ -732,16 +732,16 @@ BatteryLifetimeTest::ConstantLoadTest (double load, Time expLifetime)
 
   // install YansWifiPhy
   WifiHelper wifi;
-  wifi.SetStandard (WIFI_PHY_STANDARD_80211b);
+  wifi.SetStandard (WIFI_STANDARD_80211b);
 
-  YansWifiPhyHelper wifiPhy =  YansWifiPhyHelper::Default ();
+  YansWifiPhyHelper wifiPhy;
   /*
    * This is one parameter that matters when using FixedRssLossModel, set it to
    * zero; otherwise, gain will be added.
    */
   wifiPhy.Set ("RxGain", DoubleValue (0));
   // ns-3 supports RadioTap and Prism tracing extensions for 802.11b
-  wifiPhy.SetPcapDataLinkType (YansWifiPhyHelper::DLT_IEEE802_11_RADIO);
+  wifiPhy.SetPcapDataLinkType (WifiPhyHelper::DLT_IEEE802_11_RADIO);
 
   YansWifiChannelHelper wifiChannel;
   wifiChannel.SetPropagationDelay ("ns3::ConstantSpeedPropagationDelayModel");
@@ -780,8 +780,8 @@ BatteryLifetimeTest::ConstantLoadTest (double load, Time expLifetime)
   Ptr<RvBatteryModel> srcPtr = DynamicCast<RvBatteryModel> (sources.Get (0));
   actualLifetime = srcPtr->GetLifetime ();
 
-  NS_LOG_DEBUG ("Expected lifetime = " << expLifetime.GetSeconds () << "s");
-  NS_LOG_DEBUG ("Actual lifetime = " << actualLifetime.GetSeconds () << "s");
+  NS_LOG_DEBUG ("Expected lifetime = " << expLifetime.As (Time::S));
+  NS_LOG_DEBUG ("Actual lifetime = " << actualLifetime.As (Time::S));
 
   Simulator::Destroy ();
 
@@ -819,16 +819,16 @@ BatteryLifetimeTest::VariableLoadTest (std::vector<double> loads,
 
   // install YansWifiPhy
   WifiHelper wifi;
-  wifi.SetStandard (WIFI_PHY_STANDARD_80211b);
+  wifi.SetStandard (WIFI_STANDARD_80211b);
 
-  YansWifiPhyHelper wifiPhy =  YansWifiPhyHelper::Default ();
+  YansWifiPhyHelper wifiPhy;
   /*
    * This is one parameter that matters when using FixedRssLossModel, set it to
    * zero; otherwise, gain will be added.
    */
   wifiPhy.Set ("RxGain", DoubleValue (0));
   // ns-3 supports RadioTap and Prism tracing extensions for 802.11b
-  wifiPhy.SetPcapDataLinkType (YansWifiPhyHelper::DLT_IEEE802_11_RADIO);
+  wifiPhy.SetPcapDataLinkType (WifiPhyHelper::DLT_IEEE802_11_RADIO);
 
   YansWifiChannelHelper wifiChannel;
   wifiChannel.SetPropagationDelay ("ns3::ConstantSpeedPropagationDelayModel");
@@ -876,15 +876,14 @@ BatteryLifetimeTest::VariableLoadTest (std::vector<double> loads,
   Ptr<RvBatteryModel> srcPtr = DynamicCast<RvBatteryModel> (sources.Get (0));
   actualLifetime = srcPtr->GetLifetime ();
 
-  NS_LOG_DEBUG ("Expected lifetime = " << expLifetime.GetSeconds () << "s");
-  NS_LOG_DEBUG ("Actual lifetime = " << actualLifetime.GetSeconds () << "s");
-  NS_LOG_DEBUG ("Difference = " << expLifetime.GetSeconds () - actualLifetime.GetSeconds () << "s");
+  NS_LOG_DEBUG ("Expected lifetime = " << expLifetime.As (Time::S));
+  NS_LOG_DEBUG ("Actual lifetime = " << actualLifetime.As (Time::S));
+  NS_LOG_DEBUG ("Difference = " << (expLifetime - actualLifetime).As (Time::S));
 
   Simulator::Destroy ();
 
   // error tolerance = 120s
-  if ((actualLifetime.GetSeconds ()) > (expLifetime.GetSeconds ()) + (120) ||
-      (actualLifetime.GetSeconds ()) < (expLifetime.GetSeconds ()) - (120))
+  if (Abs (actualLifetime - expLifetime)  > Seconds (120))
     {
       std::cerr << "VariableLoadTest: Incorrect lifetime." << std::endl;
       return true;

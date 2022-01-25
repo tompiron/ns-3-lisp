@@ -211,9 +211,20 @@ public:
   /**
    * \brief Marks the packet as a substitute for dropping it, such as for Explicit Congestion Notification
    *
-   * \return true if the packet gets marked, false otherwise
+   * \return true if the packet is marked by this method or is already marked, false otherwise
    */
   virtual bool Mark (void) = 0;
+
+  /**
+   * \brief Computes the hash of various fields of the packet header
+   *
+   * This method just returns 0. Subclasses should implement a reasonable hash
+   * for their protocol type, such as hashing on the TCP/IP 5-tuple.
+   *
+   * \param perturbation hash perturbation value
+   * \return the hash of various fields of the packet header
+   */
+  virtual uint32_t Hash (uint32_t perturbation = 0) const;
 
 private:
   /**

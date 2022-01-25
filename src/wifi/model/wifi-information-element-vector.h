@@ -47,18 +47,29 @@ public:
    * \return the object TypeId
    */
   static TypeId GetTypeId ();
-  TypeId GetInstanceTypeId () const;
-  virtual uint32_t GetSerializedSize () const;
-  virtual void Serialize (Buffer::Iterator start) const;
+
+  TypeId GetInstanceTypeId () const override;
+  uint32_t GetSerializedSize () const override;
+  void Serialize (Buffer::Iterator start) const override;
   /**
-   * \attention When you use RemoveHeader, WifiInformationElementVector supposes, that
-   * all buffer consists of information elements
+   * \attention This variant should not be used but is implemented due to
+   * backward compatibility reasons
    *
-   * \param start the iterator
-   * \returns distance
+   * \param start buffer location to start deserializing from
+   * \return number of bytes deserialized
    */
-  virtual uint32_t Deserialize (Buffer::Iterator start);
-  virtual void Print (std::ostream &os) const;
+  uint32_t Deserialize (Buffer::Iterator start) override;
+  /**
+   * Deserialize a number of WifiInformationElements 
+   *
+   * The size of this Header should equal start.GetDistanceFrom (end).
+   *
+   * \param start starting buffer location
+   * \param end ending buffer location
+   * \return number of bytes deserialized
+   */
+  uint32_t Deserialize (Buffer::Iterator start, Buffer::Iterator end) override;
+  void Print (std::ostream &os) const override;
 
   /**
    * \brief Needed when you try to deserialize a lonely IE inside other header
@@ -68,12 +79,6 @@ public:
    * \return deserialized bytes
    */
   virtual uint32_t DeserializeSingleIe (Buffer::Iterator start);
-  /**
-   * Set maximum size to control overflow of the max packet length
-   *
-   * \param size the maximum size to set (bytes)
-   */
-  void SetMaxSize (uint16_t size);
   /// As soon as this is a vector, we define an Iterator
   typedef std::vector<Ptr<WifiInformationElement> >::iterator Iterator;
   /**
@@ -123,8 +128,7 @@ protected:
    */
   uint32_t GetSize () const;
   IE_VECTOR m_elements; //!< Information element vector
-  /// Size in bytes (actually, max packet length)
-  uint16_t m_maxSize;
+  uint16_t m_maxSize;   //!< Size in bytes (actually, max packet length)
 };
 
 } //namespace ns3

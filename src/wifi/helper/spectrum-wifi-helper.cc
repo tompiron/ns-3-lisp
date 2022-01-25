@@ -19,10 +19,14 @@
  *          Sébastien Deronne <sebastien.deronne@gmail.com>
  */
 
-#include "spectrum-wifi-helper.h"
-#include "ns3/spectrum-wifi-phy.h"
-#include "ns3/names.h"
 #include "ns3/log.h"
+#include "ns3/names.h"
+#include "ns3/spectrum-wifi-phy.h"
+#include "ns3/error-rate-model.h"
+#include "ns3/frame-capture-model.h"
+#include "ns3/preamble-detection-model.h"
+#include "ns3/mobility-model.h"
+#include "spectrum-wifi-helper.h"
 
 namespace ns3 {
 
@@ -32,14 +36,7 @@ SpectrumWifiPhyHelper::SpectrumWifiPhyHelper ()
   : m_channel (0)
 {
   m_phy.SetTypeId ("ns3::SpectrumWifiPhy");
-}
-
-SpectrumWifiPhyHelper
-SpectrumWifiPhyHelper::Default (void)
-{
-  SpectrumWifiPhyHelper helper;
-  helper.SetErrorRateModel ("ns3::NistErrorRateModel");
-  return helper;
+  SetErrorRateModel ("ns3::TableBasedErrorRateModel");
 }
 
 void
@@ -62,6 +59,16 @@ SpectrumWifiPhyHelper::Create (Ptr<Node> node, Ptr<NetDevice> device) const
   phy->CreateWifiSpectrumPhyInterface (device);
   Ptr<ErrorRateModel> error = m_errorRateModel.Create<ErrorRateModel> ();
   phy->SetErrorRateModel (error);
+  if (m_frameCaptureModel.IsTypeIdSet ())
+    {
+      auto frameCapture = m_frameCaptureModel.Create<FrameCaptureModel> ();
+      phy->SetFrameCaptureModel (frameCapture);
+    }
+  if (m_preambleDetectionModel.IsTypeIdSet ())
+    {
+      auto preambleDetection = m_preambleDetectionModel.Create<PreambleDetectionModel> ();
+      phy->SetPreambleDetectionModel (preambleDetection);
+    }
   phy->SetChannel (m_channel);
   phy->SetDevice (device);
   phy->SetMobility (node->GetObject<MobilityModel> ());

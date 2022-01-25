@@ -173,7 +173,7 @@ public:
   void SetChecksum (uint16_t checksum);
 
   /**
-   * \brief Print informations.
+   * \brief Print information.
    * \param os output stream
    */
   virtual void Print (std::ostream& os) const;
@@ -285,7 +285,7 @@ public:
   void SetLength (uint8_t len);
 
   /**
-   * \brief Print informations.
+   * \brief Print information.
    * \param os output stream
    */
   virtual void Print (std::ostream& os) const;
@@ -382,7 +382,7 @@ public:
   void SetIpv6Target (Ipv6Address target);
 
   /**
-   * \brief Print informations.
+   * \brief Print information.
    * \param os output stream
    */
   virtual void Print (std::ostream& os) const;
@@ -510,7 +510,7 @@ public:
   void SetFlagO (bool o);
 
   /**
-   * \brief Print informations.
+   * \brief Print information.
    * \param os output stream
    */
   virtual void Print (std::ostream& os) const;
@@ -676,7 +676,7 @@ public:
   void SetFlagH (bool h);
 
   /**
-   * \brief Print informations.
+   * \brief Print information.
    * \param os output stream
    */
   virtual void Print (std::ostream& os) const;
@@ -685,12 +685,14 @@ public:
    * \brief Getflags.
    * \return the flags value
    */
+  NS_DEPRECATED_3_34
   uint8_t GetFlags () const;
 
   /**
    * \brief Setflags.
    * \param f the flags value
    */
+  NS_DEPRECATED_3_34
   void SetFlags (uint8_t f);
 
   /**
@@ -727,11 +729,6 @@ private:
    * \brief The H flag.
    */
   bool m_flagH;
-
-  /**
-   * \brief The flags field value.
-   */
-  uint8_t m_flags;
 
   /**
    * \brief The lifetime value.
@@ -797,7 +794,7 @@ public:
   void SetReserved (uint32_t reserved);
 
   /**
-   * \brief Print informations.
+   * \brief Print information.
    * \param os output stream
    */
   virtual void Print (std::ostream& os) const;
@@ -883,7 +880,7 @@ public:
   void SetDestination (Ipv6Address destination);
 
   /**
-   * \brief Print informations.
+   * \brief Print information.
    * \param os output stream
    */
   virtual void Print (std::ostream& os) const;
@@ -997,7 +994,7 @@ public:
   void SetSeq (uint16_t seq);
 
   /**
-   * \brief Print informations.
+   * \brief Print information.
    * \param os output stream
    */
   virtual void Print (std::ostream& os) const;
@@ -1076,7 +1073,7 @@ public:
   void SetPacket (Ptr<Packet> p);
 
   /**
-   * \brief Print informations.
+   * \brief Print information.
    * \param os output stream
    */
   virtual void Print (std::ostream& os) const;
@@ -1162,7 +1159,7 @@ public:
   void SetMtu (uint32_t mtu);
 
   /**
-   * \brief Print informations.
+   * \brief Print information.
    * \param os output stream
    */
   virtual void Print (std::ostream& os) const;
@@ -1242,7 +1239,7 @@ public:
   void SetPacket (Ptr<Packet> p);
 
   /**
-   * \brief Print informations.
+   * \brief Print information.
    * \param os output stream
    */
   virtual void Print (std::ostream& os) const;
@@ -1329,7 +1326,7 @@ public:
   void SetPtr (uint32_t ptr);
 
   /**
-   * \brief Print informations.
+   * \brief Print information.
    * \param os output stream
    */
   virtual void Print (std::ostream& os) const;
@@ -1427,7 +1424,7 @@ public:
   void SetMtu (uint32_t mtu);
 
   /**
-   * \brief Print informations.
+   * \brief Print information.
    * \param os output stream
    */
   virtual void Print (std::ostream& os) const;
@@ -1499,6 +1496,17 @@ public:
    * \return instance type ID
    */
   virtual TypeId GetInstanceTypeId () const;
+
+  /**
+   * \brief Icmpv6 Option Prefix Information flag field values
+   */
+  typedef enum
+  {
+    NONE         = 0,   //!< No flags
+    ROUTERADDR   = 32,  //!< Router Address
+    AUTADDRCONF  = 64,  //!< Autonomous Address Configuration
+    ONLINK       = 128  //!< On-link
+  } Flags_t;
 
   /**
    * \brief Get the prefix length.
@@ -1573,7 +1581,7 @@ public:
   void SetPrefix (Ipv6Address prefix);
 
   /**
-   * \brief Print informations.
+   * \brief Print information.
    * \param os output stream
    */
   virtual void Print (std::ostream& os) const;
@@ -1685,7 +1693,7 @@ public:
   void SetAddress (Address addr);
 
   /**
-   * \brief Print informations.
+   * \brief Print information.
    * \param os output stream
    */
   virtual void Print (std::ostream& os) const;
@@ -1759,7 +1767,7 @@ public:
   void SetPacket (Ptr<Packet> packet);
 
   /**
-   * \brief Print informations.
+   * \brief Print information.
    * \param os output stream
    */
   virtual void Print (std::ostream& os) const;

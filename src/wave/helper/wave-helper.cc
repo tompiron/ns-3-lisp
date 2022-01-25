@@ -15,16 +15,13 @@
  *
  * Author: Junling Bu <linlinjavaer@gmail.com>
  */
-#include "ns3/wifi-mac.h"
-#include "ns3/wifi-phy.h"
+
 #include "ns3/log.h"
 #include "ns3/pointer.h"
 #include "ns3/string.h"
-#include "ns3/wifi-mode.h"
 #include "ns3/config.h"
 #include "ns3/names.h"
 #include "ns3/abort.h"
-#include "ns3/ampdu-subframe-header.h"
 #include "ns3/wave-net-device.h"
 #include "ns3/minstrel-wifi-manager.h"
 #include "ns3/radiotap-header.h"
@@ -387,7 +384,7 @@ WaveHelper::Install (const WifiPhyHelper &phyHelper,  const WifiMacHelper &macHe
       for (uint32_t j = 0; j != m_physNumber; ++j)
         {
           Ptr<WifiPhy> phy = phyHelper.Create (node, device);
-          phy->ConfigureStandard (WIFI_PHY_STANDARD_80211_10MHZ);
+          phy->ConfigureStandardAndBand (WIFI_PHY_STANDARD_80211p, WIFI_PHY_BAND_5GHZ);
           phy->SetChannelNumber (ChannelManager::GetCch ());
           device->AddPhy (phy);
         }
@@ -395,12 +392,10 @@ WaveHelper::Install (const WifiPhyHelper &phyHelper,  const WifiMacHelper &macHe
       for (std::vector<uint32_t>::const_iterator k = m_macsForChannelNumber.begin ();
            k != m_macsForChannelNumber.end (); ++k)
         {
-          Ptr<WifiMac> wifiMac = macHelper.Create ();
+          Ptr<WifiMac> wifiMac = macHelper.Create (device, WIFI_STANDARD_80211p);
           Ptr<OcbWifiMac> ocbMac = DynamicCast<OcbWifiMac> (wifiMac);
-          // we use WaveMacLow to replace original MacLow
+          ocbMac->SetWifiRemoteStationManager (m_stationManager.Create<WifiRemoteStationManager> ());
           ocbMac->EnableForWave (device);
-          ocbMac->SetWifiRemoteStationManager ( m_stationManager.Create<WifiRemoteStationManager> ());
-          ocbMac->ConfigureStandard (WIFI_PHY_STANDARD_80211_10MHZ);
           device->AddMac (*k, ocbMac);
         }
 
@@ -438,7 +433,7 @@ WaveHelper::EnableLogComponents (void)
   LogComponentEnable ("VsaManager", LOG_LEVEL_ALL);
   LogComponentEnable ("OcbWifiMac", LOG_LEVEL_ALL);
   LogComponentEnable ("VendorSpecificAction", LOG_LEVEL_ALL);
-  LogComponentEnable ("WaveMacLow", LOG_LEVEL_ALL);
+  LogComponentEnable ("WaveFrameExchangeManager", LOG_LEVEL_ALL);
   LogComponentEnable ("HigherLayerTxVectorTag", LOG_LEVEL_ALL);
 }
 
@@ -475,25 +470,25 @@ WaveHelper::AssignStreams (NetDeviceContainer c, int64_t stream)
                 }
 
               PointerValue ptr;
-              rmac->GetAttribute ("DcaTxop", ptr);
-              Ptr<DcaTxop> dcaTxop = ptr.Get<DcaTxop> ();
-              currentStream += dcaTxop->AssignStreams (currentStream);
+              rmac->GetAttribute ("Txop", ptr);
+              Ptr<Txop> txop = ptr.Get<Txop> ();
+              currentStream += txop->AssignStreams (currentStream);
 
-              rmac->GetAttribute ("VO_EdcaTxopN", ptr);
-              Ptr<EdcaTxopN> vo_edcaTxopN = ptr.Get<EdcaTxopN> ();
-              currentStream += vo_edcaTxopN->AssignStreams (currentStream);
+              rmac->GetAttribute ("VO_Txop", ptr);
+              Ptr<QosTxop> vo_txop = ptr.Get<QosTxop> ();
+              currentStream += vo_txop->AssignStreams (currentStream);
 
-              rmac->GetAttribute ("VI_EdcaTxopN", ptr);
-              Ptr<EdcaTxopN> vi_edcaTxopN = ptr.Get<EdcaTxopN> ();
-              currentStream += vi_edcaTxopN->AssignStreams (currentStream);
+              rmac->GetAttribute ("VI_Txop", ptr);
+              Ptr<QosTxop> vi_txop = ptr.Get<QosTxop> ();
+              currentStream += vi_txop->AssignStreams (currentStream);
 
-              rmac->GetAttribute ("BE_EdcaTxopN", ptr);
-              Ptr<EdcaTxopN> be_edcaTxopN = ptr.Get<EdcaTxopN> ();
-              currentStream += be_edcaTxopN->AssignStreams (currentStream);
+              rmac->GetAttribute ("BE_Txop", ptr);
+              Ptr<QosTxop> be_txop = ptr.Get<QosTxop> ();
+              currentStream += be_txop->AssignStreams (currentStream);
 
-              rmac->GetAttribute ("BK_EdcaTxopN", ptr);
-              Ptr<EdcaTxopN> bk_edcaTxopN = ptr.Get<EdcaTxopN> ();
-              currentStream += bk_edcaTxopN->AssignStreams (currentStream);
+              rmac->GetAttribute ("BK_Txop", ptr);
+              Ptr<QosTxop> bk_txop = ptr.Get<QosTxop> ();
+              currentStream += bk_txop->AssignStreams (currentStream);
             }
         }
     }

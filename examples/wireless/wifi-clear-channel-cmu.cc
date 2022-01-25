@@ -18,15 +18,22 @@
  * Author: Guangyu Pei <guangyu.pei@boeing.com>
  */
 
-#include "ns3/core-module.h"
-#include "ns3/mobility-module.h"
-#include "ns3/stats-module.h"
-#include "ns3/wifi-module.h"
-#include "ns3/internet-module.h"
+#include "ns3/gnuplot.h"
+#include "ns3/command-line.h"
+#include "ns3/config.h"
+#include "ns3/double.h"
+#include "ns3/string.h"
+#include "ns3/log.h"
+#include "ns3/yans-wifi-helper.h"
+#include "ns3/mobility-helper.h"
+#include "ns3/yans-wifi-channel.h"
+#include "ns3/mobility-model.h"
+#include "ns3/internet-stack-helper.h"
+#include "ns3/ipv4-address-helper.h"
 
 using namespace ns3;
 
-NS_LOG_COMPONENT_DEFINE ("Main");
+NS_LOG_COMPONENT_DEFINE ("ClearChannelCmu");
 
 class Experiment
 {
@@ -167,11 +174,8 @@ int main (int argc, char *argv[])
   modes.push_back ("DsssRate2Mbps");
   modes.push_back ("DsssRate5_5Mbps");
   modes.push_back ("DsssRate11Mbps");
-  // disable fragmentation
-  Config::SetDefault ("ns3::WifiRemoteStationManager::FragmentationThreshold", StringValue ("2200"));
-  Config::SetDefault ("ns3::WifiRemoteStationManager::RtsCtsThreshold", StringValue ("2200"));
 
-  CommandLine cmd;
+  CommandLine cmd (__FILE__);
   cmd.Parse (argc, argv);
 
   Gnuplot gnuplot = Gnuplot ("clear-channel.eps");
@@ -187,7 +191,7 @@ int main (int argc, char *argv[])
           dataset.SetStyle (Gnuplot2dDataset::LINES);
 
           WifiHelper wifi;
-          wifi.SetStandard (WIFI_PHY_STANDARD_80211b);
+          wifi.SetStandard (WIFI_STANDARD_80211b);
           WifiMacHelper wifiMac;
           Config::SetDefault ("ns3::WifiRemoteStationManager::NonUnicastMode",
                               StringValue (modes[i]));
@@ -196,7 +200,7 @@ int main (int argc, char *argv[])
                                         "ControlMode",StringValue (modes[i]));
           wifiMac.SetType ("ns3::AdhocWifiMac");
 
-          YansWifiPhyHelper wifiPhy = YansWifiPhyHelper::Default ();
+          YansWifiPhyHelper wifiPhy;
           YansWifiChannelHelper wifiChannel;
           wifiChannel.SetPropagationDelay ("ns3::ConstantSpeedPropagationDelayModel");
           wifiChannel.AddPropagationLoss ("ns3::FixedRssLossModel","Rss",DoubleValue (rss));
@@ -204,8 +208,6 @@ int main (int argc, char *argv[])
 
           NS_LOG_DEBUG (modes[i]);
           experiment = Experiment (modes[i]);
-          wifiPhy.Set ("EnergyDetectionThreshold", DoubleValue (-110.0) );
-          wifiPhy.Set ("CcaMode1Threshold", DoubleValue (-110.0) );
           wifiPhy.Set ("TxPowerStart", DoubleValue (15.0) );
           wifiPhy.Set ("TxPowerEnd", DoubleValue (15.0) );
           wifiPhy.Set ("RxGain", DoubleValue (0) );

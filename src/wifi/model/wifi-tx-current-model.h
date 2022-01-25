@@ -28,7 +28,7 @@ namespace ns3 {
 /**
  * \ingroup energy
  *
- * \brief Modelize the transmit current as a function of the transmit power and mode
+ * \brief Model the transmit current as a function of the transmit power and mode
  *
  */
 class WifiTxCurrentModel : public Object
@@ -44,7 +44,7 @@ public:
   virtual ~WifiTxCurrentModel ();
 
   /**
-   * \param txPowerDbm the nominal tx power in dBm
+   * \param txPowerDbm the nominal TX power in dBm
    * \returns the transmit current (in Ampere)
    */
   virtual double CalcTxCurrent (double txPowerDbm) const = 0;
@@ -76,7 +76,7 @@ public:
  * "On the Effects of Transmit Power Control on the Energy Consumption of WiFi Network Cards",
  * Proceedings of ICST QShine 2009, pp. 463--475
  *
- * If the tx current corresponding to a given nominal transmit power is known, the efficiency
+ * If the TX current corresponding to a given nominal transmit power is known, the efficiency
  * of the power amplifier is given by the above formula:
  * \f$ \eta = \frac{P_{tx}}{(I_{tx}-I_{idle})\cdot V} \f$
  *
@@ -93,49 +93,13 @@ public:
   LinearWifiTxCurrentModel ();
   virtual ~LinearWifiTxCurrentModel ();
 
-  /**
-   * \param eta (dimension-less)
-   *
-   * Set the power amplifier efficiency.
-   */
-  void SetEta (double eta);
-
-  /**
-   * \param voltage (Volts)
-   *
-   * Set the supply voltage.
-   */
-  void SetVoltage (double voltage);
-
-  /**
-   * \param idleCurrent (Ampere)
-   *
-   * Set the current in the IDLE state.
-   */
-  void SetIdleCurrent (double idleCurrent);
-
-  /**
-   * \return the power amplifier efficiency.
-   */
-  double GetEta (void) const;
-
-  /**
-   * \return the supply voltage.
-   */
-  double GetVoltage (void) const;
-
-  /**
-   * \return the current in the IDLE state.
-   */
-  double GetIdleCurrent (void) const;
-
   double CalcTxCurrent (double txPowerDbm) const;
 
 
 private:
   double m_eta; ///< ETA
-  double m_voltage; ///< voltage
-  double m_idleCurrent; ///< idle current
+  double m_voltage; ///< voltage in Volts
+  double m_idleCurrent; ///< idle current in Amperes
 };
 
 } // namespace ns3

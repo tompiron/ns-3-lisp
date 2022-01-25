@@ -21,8 +21,13 @@
 #ifndef ROCKETFUEL_TOPOLOGY_READER_H
 #define ROCKETFUEL_TOPOLOGY_READER_H
 
-#include "ns3/nstime.h"
 #include "topology-reader.h"
+
+/**
+ * \file
+ * \ingroup topology
+ * ns3::RocketfuelTopologyReader declaration.
+ */
 
 namespace ns3 {
 
@@ -103,9 +108,10 @@ private:
   /**
    * \brief Classifies the file type according to its content.
    *
+   * \param buf the first line of the file being read
    * \return The file type (RF_MAPS, RF_WEIGHTS, or RF_UNKNOWN)
    */
-  enum RF_FileType GetFileType (const char *);
+  enum RF_FileType GetFileType (const char *buf);
 
   int m_linksNumber; //!< Number of links.
   int m_nodesNumber; //!< Number of nodes.

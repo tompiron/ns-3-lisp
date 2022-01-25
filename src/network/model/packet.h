@@ -316,12 +316,25 @@ public:
   /**
    * \brief Deserialize and remove the header from the internal buffer.
    *
-   * This method invokes Header::Deserialize.
+   * This method invokes Header::Deserialize (begin) and should be used for
+   * fixed-length headers.
    *
    * \param header a reference to the header to remove from the internal buffer.
    * \returns the number of bytes removed from the packet.
    */
   uint32_t RemoveHeader (Header &header);
+  /**
+   * \brief Deserialize and remove the header from the internal buffer.
+   *
+   * This method invokes Header::Deserialize (begin, end) and should be 
+   * used for variable-length headers (where the size is determined somehow
+   * by the caller).
+   *
+   * \param header a reference to the header to remove from the internal buffer.
+   * \param size number of bytes to deserialize
+   * \returns the number of bytes removed from the packet.
+   */
+  uint32_t RemoveHeader (Header &header, uint32_t size);
   /**
    * \brief Deserialize but does _not_ remove the header from the internal buffer.
    * s
@@ -331,6 +344,18 @@ public:
    * \returns the number of bytes read from the packet.
    */
   uint32_t PeekHeader (Header &header) const;
+  /**
+   * \brief Deserialize but does _not_ remove the header from the internal buffer.
+   * s
+   * This method invokes Header::Deserialize (begin, end) and should be used
+   * for variable-length headers (where the size is determined somehow
+   * by the caller).
+   *
+   * \param header a reference to the header to read from the internal buffer.
+   * \param size number of bytes to deserialize
+   * \returns the number of bytes read from the packet.
+   */
+  uint32_t PeekHeader (Header &header, uint32_t size) const;
   /**
    * \brief Add trailer to this packet.
    *
@@ -546,6 +571,27 @@ public:
    * packet).
    */
   void AddByteTag (const Tag &tag) const;
+
+  /**
+   * \brief Tag the indicated byte range of this packet with a new byte tag.
+   *
+   * As parameters for this method, we do not use indexes, but byte position.
+   * Moreover, as there is no 0-th position, the first position is 1.
+   *
+   * As example, if you want to tag the first 10 bytes, you have to call
+   * the method in this way:
+   *
+   * \code{.cpp}
+       Ptr<Packet> p = ... ;
+       SomeTag tag;
+       p->AddByteTag (tag, 1, 10);
+     \endcode
+   *
+   * \param tag the new tag to add to this packet
+   * \param start the position of the first byte tagged by this tag
+   * \param end the position of the last byte tagged by this tag
+   */
+  void AddByteTag (const Tag &tag, uint32_t start, uint32_t end) const;
   /**
    * \brief Returns an iterator over the set of byte tags included in this packet
    *
@@ -676,6 +722,16 @@ public:
   typedef void (* AddressTracedCallback)
     (Ptr<const Packet> packet, const Address &address);
   
+   /**
+    * TracedCallback signature for packet and source/destination addresses.
+    *
+    * \param [in] packet The packet.
+    * \param [in] srcAddress The source address.
+    * \param [in] destAddress The destination address.
+    */
+  typedef void (* TwoAddressTracedCallback)
+    (const Ptr<const Packet> packet, const Address &srcAddress, const Address &destAddress);
+
   /**
    * TracedCallback signature for packet and Mac48Address.
    *

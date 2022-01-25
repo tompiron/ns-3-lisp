@@ -127,6 +127,23 @@ public:
   bool AddAllocated (const Ipv4Address addr);
 
   /**
+   * \brief Check the Ipv4Address allocation in the list of IPv4 entries
+   *
+   * \param addr The Ipv4Address to be checked in the list of Ipv4 entries
+   * \returns true if the address is already allocated
+   */
+  bool IsAddressAllocated (const Ipv4Address addr);
+
+  /**
+   * \brief Check if a network has already allocated addresses
+   *
+   * \param addr The Ipv4 network to be checked
+   * \param mask The Ipv4 network mask
+   * \returns true if the network is already allocated
+   */
+  bool IsNetworkAllocated (const Ipv4Address addr, const Ipv4Mask mask);
+
+  /**
    * \brief Used to turn off fatal errors and assertions, for testing
    */
   void TestMode (void);
@@ -412,7 +429,7 @@ Ipv4AddressGeneratorImpl::AddAllocated (const Ipv4Address address)
 // If we get here, we know that the next lower block of addresses couldn't 
 // have been extended to include this new address since the code immediately 
 // above would have been executed and that next lower block extended upward.
-// So we know it's safe to extend the current block down to includ the new
+// So we know it's safe to extend the current block down to include the new
 // address.
 //
       if (addr == (*i).addrLow - 1)
@@ -428,6 +445,58 @@ Ipv4AddressGeneratorImpl::AddAllocated (const Ipv4Address address)
   m_entries.insert (i, entry);
   return true;
 }
+
+bool
+Ipv4AddressGeneratorImpl::IsAddressAllocated (const Ipv4Address address)
+{
+  NS_LOG_FUNCTION (this << address);
+
+  uint32_t addr = address.Get ();
+
+  NS_ABORT_MSG_UNLESS (addr, "Ipv4AddressGeneratorImpl::IsAddressAllocated(): Don't check for the broadcast address...");
+
+  std::list<Entry>::iterator i;
+
+  for (i = m_entries.begin (); i != m_entries.end (); ++i)
+    {
+      NS_LOG_LOGIC ("examine entry: " << Ipv4Address ((*i).addrLow) <<
+                    " to " << Ipv4Address ((*i).addrHigh));
+      if (addr >= (*i).addrLow && addr <= (*i).addrHigh)
+        {
+          NS_LOG_LOGIC ("Ipv4AddressGeneratorImpl::IsAddressAllocated(): Address Collision: " << Ipv4Address (addr));
+          return false;
+        }
+    }
+  return true;
+}
+
+bool
+Ipv4AddressGeneratorImpl::IsNetworkAllocated (const Ipv4Address address, const Ipv4Mask mask)
+{
+  NS_LOG_FUNCTION (this << address << mask);
+
+  NS_ABORT_MSG_UNLESS (address == address.CombineMask (mask),
+                       "Ipv4AddressGeneratorImpl::IsNetworkAllocated(): network address and mask don't match " << address << " " << mask);
+
+  std::list<Entry>::iterator i;
+
+  for (i = m_entries.begin (); i != m_entries.end (); ++i)
+    {
+      NS_LOG_LOGIC ("examine entry: " << Ipv4Address ((*i).addrLow) << " to " << Ipv4Address ((*i).addrHigh));
+      Ipv4Address low = Ipv4Address ((*i).addrLow);
+      Ipv4Address high = Ipv4Address ((*i).addrHigh);
+
+      if (address == low.CombineMask (mask) || address == high.CombineMask (mask))
+        {
+          NS_LOG_LOGIC ("Ipv4AddressGeneratorImpl::IsNetworkAllocated(): Network already allocated: " <<
+                        address << " " << low << "-" << high);
+          return false;
+        }
+
+    }
+  return true;
+}
+
 
 void
 Ipv4AddressGeneratorImpl::TestMode (void)
@@ -475,7 +544,7 @@ Ipv4AddressGenerator::Init (
   const Ipv4Mask mask,
   const Ipv4Address addr)
 {
-  NS_LOG_FUNCTION_NOARGS ();
+  NS_LOG_FUNCTION (net << mask << addr);
 
   SimulationSingleton<Ipv4AddressGeneratorImpl>::Get ()
   ->Init (net, mask, addr);
@@ -484,7 +553,7 @@ Ipv4AddressGenerator::Init (
 Ipv4Address
 Ipv4AddressGenerator::NextNetwork (const Ipv4Mask mask)
 {
-  NS_LOG_FUNCTION_NOARGS ();
+  NS_LOG_FUNCTION (mask);
 
   return SimulationSingleton<Ipv4AddressGeneratorImpl>::Get ()
          ->NextNetwork (mask);
@@ -493,7 +562,7 @@ Ipv4AddressGenerator::NextNetwork (const Ipv4Mask mask)
 Ipv4Address
 Ipv4AddressGenerator::GetNetwork (const Ipv4Mask mask)
 {
-  NS_LOG_FUNCTION_NOARGS ();
+  NS_LOG_FUNCTION (mask);
 
   return SimulationSingleton<Ipv4AddressGeneratorImpl>::Get ()
          ->GetNetwork (mask);
@@ -504,7 +573,7 @@ Ipv4AddressGenerator::InitAddress (
   const Ipv4Address addr,
   const Ipv4Mask mask)
 {
-  NS_LOG_FUNCTION_NOARGS ();
+  NS_LOG_FUNCTION (addr << mask);
 
   SimulationSingleton<Ipv4AddressGeneratorImpl>::Get ()
   ->InitAddress (addr, mask);
@@ -513,7 +582,7 @@ Ipv4AddressGenerator::InitAddress (
 Ipv4Address
 Ipv4AddressGenerator::GetAddress (const Ipv4Mask mask)
 {
-  NS_LOG_FUNCTION_NOARGS ();
+  NS_LOG_FUNCTION (mask);
 
   return SimulationSingleton<Ipv4AddressGeneratorImpl>::Get ()
          ->GetAddress (mask);
@@ -522,7 +591,7 @@ Ipv4AddressGenerator::GetAddress (const Ipv4Mask mask)
 Ipv4Address
 Ipv4AddressGenerator::NextAddress (const Ipv4Mask mask)
 {
-  NS_LOG_FUNCTION_NOARGS ();
+  NS_LOG_FUNCTION (mask);
 
   return SimulationSingleton<Ipv4AddressGeneratorImpl>::Get ()
          ->NextAddress (mask);
@@ -540,10 +609,28 @@ Ipv4AddressGenerator::Reset (void)
 bool
 Ipv4AddressGenerator::AddAllocated (const Ipv4Address addr)
 {
-  NS_LOG_FUNCTION_NOARGS ();
+  NS_LOG_FUNCTION (addr);
 
   return SimulationSingleton<Ipv4AddressGeneratorImpl>::Get ()
          ->AddAllocated (addr);
+}
+
+bool
+Ipv4AddressGenerator::IsAddressAllocated (const Ipv4Address addr)
+{
+  NS_LOG_FUNCTION (addr);
+
+  return SimulationSingleton<Ipv4AddressGeneratorImpl>::Get ()
+         ->IsAddressAllocated (addr);
+}
+
+bool
+Ipv4AddressGenerator::IsNetworkAllocated (const Ipv4Address addr, const Ipv4Mask mask)
+{
+  NS_LOG_FUNCTION (addr << mask);
+
+  return SimulationSingleton<Ipv4AddressGeneratorImpl>::Get ()
+         ->IsNetworkAllocated (addr, mask);
 }
 
 void

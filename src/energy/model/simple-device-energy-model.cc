@@ -85,7 +85,15 @@ double
 SimpleDeviceEnergyModel::GetTotalEnergyConsumption (void) const
 {
   NS_LOG_FUNCTION (this);
-  return m_totalEnergyConsumption;
+  Time duration = Simulator::Now () - m_lastUpdateTime;
+
+  double energyToDecrease = 0.0;
+  double supplyVoltage = m_source->GetSupplyVoltage ();
+  energyToDecrease = duration.GetSeconds () * m_actualCurrentA * supplyVoltage;
+
+  m_source->UpdateEnergySource ();
+
+  return m_totalEnergyConsumption + energyToDecrease;
 }
 
 void
@@ -96,7 +104,7 @@ SimpleDeviceEnergyModel::SetCurrentA (double current)
 
   double energyToDecrease = 0.0;
   double supplyVoltage = m_source->GetSupplyVoltage ();
-  energyToDecrease = duration.GetSeconds () * current * supplyVoltage;
+  energyToDecrease = duration.GetSeconds () * m_actualCurrentA * supplyVoltage;
 
   // update total energy consumption
   m_totalEnergyConsumption += energyToDecrease;

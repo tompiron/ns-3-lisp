@@ -18,8 +18,10 @@
  * Author: Nicola Baldo <nbaldo@cttc.es>
  */
 
-#include <ns3/log.h>
-#include <ns3/spectrum-value.h>
+#include "ns3/log.h"
+#include "ns3/spectrum-value.h"
+#include "ns3/mobility-model.h"
+#include "ns3/net-device.h"
 #include "wifi-spectrum-phy-interface.h"
 #include "spectrum-wifi-phy.h"
 
@@ -64,7 +66,7 @@ WifiSpectrumPhyInterface::GetDevice () const
 }
 
 Ptr<MobilityModel>
-WifiSpectrumPhyInterface::GetMobility ()
+WifiSpectrumPhyInterface::GetMobility () const
 {
   return m_spectrumWifiPhy->GetMobility ();
 }
@@ -95,7 +97,7 @@ WifiSpectrumPhyInterface::GetRxSpectrumModel () const
 }
 
 Ptr<AntennaModel>
-WifiSpectrumPhyInterface::GetRxAntenna (void)
+WifiSpectrumPhyInterface::GetRxAntenna (void) const
 {
   NS_LOG_FUNCTION (this);
   return m_spectrumWifiPhy->GetRxAntenna ();

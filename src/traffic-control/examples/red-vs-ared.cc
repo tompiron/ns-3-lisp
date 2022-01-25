@@ -48,14 +48,14 @@ int main (int argc, char *argv[])
   std::string bottleNeckLinkBw = "1Mbps";
   std::string bottleNeckLinkDelay = "50ms";
 
-  CommandLine cmd;
+  CommandLine cmd (__FILE__);
   cmd.AddValue ("nLeaf",     "Number of left and right side leaf nodes", nLeaf);
   cmd.AddValue ("maxPackets","Max Packets allowed in the device queue", maxPackets);
   cmd.AddValue ("queueDiscLimitPackets","Max Packets allowed in the queue disc", queueDiscLimitPackets);
   cmd.AddValue ("queueDiscType", "Set Queue disc type to RED or ARED", queueDiscType);
   cmd.AddValue ("appPktSize", "Set OnOff App Packet Size", pktSize);
   cmd.AddValue ("appDataRate", "Set OnOff App DataRate", appDataRate);
-  cmd.AddValue ("modeBytes", "Set Queue disc mode to Packets <false> or bytes <true>", modeBytes);
+  cmd.AddValue ("modeBytes", "Set Queue disc mode to Packets (false) or bytes (true)", modeBytes);
 
   cmd.AddValue ("redMinTh", "RED queue minimum threshold", minTh);
   cmd.AddValue ("redMaxTh", "RED queue maximum threshold", maxTh);
@@ -70,18 +70,18 @@ int main (int argc, char *argv[])
   Config::SetDefault ("ns3::OnOffApplication::PacketSize", UintegerValue (pktSize));
   Config::SetDefault ("ns3::OnOffApplication::DataRate", StringValue (appDataRate));
 
-  Config::SetDefault ("ns3::QueueBase::Mode", StringValue ("QUEUE_MODE_PACKETS"));
-  Config::SetDefault ("ns3::QueueBase::MaxPackets", UintegerValue (maxPackets));
+  Config::SetDefault ("ns3::DropTailQueue<Packet>::MaxSize",
+                      StringValue (std::to_string (maxPackets) + "p"));
 
   if (!modeBytes)
     {
-      Config::SetDefault ("ns3::RedQueueDisc::Mode", StringValue ("QUEUE_DISC_MODE_PACKETS"));
-      Config::SetDefault ("ns3::RedQueueDisc::QueueLimit", UintegerValue (queueDiscLimitPackets));
+      Config::SetDefault ("ns3::RedQueueDisc::MaxSize",
+                          QueueSizeValue (QueueSize (QueueSizeUnit::PACKETS, queueDiscLimitPackets)));
     }
   else
     {
-      Config::SetDefault ("ns3::RedQueueDisc::Mode", StringValue ("QUEUE_DISC_MODE_BYTES"));
-      Config::SetDefault ("ns3::RedQueueDisc::QueueLimit", UintegerValue (queueDiscLimitPackets * pktSize));
+      Config::SetDefault ("ns3::RedQueueDisc::MaxSize",
+                          QueueSizeValue (QueueSize (QueueSizeUnit::BYTES, queueDiscLimitPackets * pktSize)));
       minTh *= pktSize;
       maxTh *= pktSize;
     }

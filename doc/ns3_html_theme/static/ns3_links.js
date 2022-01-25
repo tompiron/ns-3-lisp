@@ -1,8 +1,8 @@
 // nsnam.org links, independent of version
-var ns3_site = "http://www.nsnam.org/";
+var ns3_site = "https://www.nsnam.org/";
 var ns3_home = ns3_site + "";
 var ns3_wiki = ns3_site + "wiki";
-var ns3_bugs = ns3_site + "bugzilla";
+var ns3_bugs = "https://gitlab.com/nsnam/ns-3-dev/-/issues";
 
 // Links that depend on version:
 // Defined in ns3_version.js:
@@ -42,7 +42,6 @@ if (typeof ns3_builder != 'undefined') {
 var ns3_man  = ns3_rel  + "manual/"         + ns3_index;
 var ns3_mod  = ns3_rel  + "models/"         + ns3_index;
 var ns3_tut  = ns3_rel  + "tutorial/"       + ns3_index;
-var ns3_ptbr = ns3_rel  + "tutorial-pt-br/" + ns3_index;
 
 function ns3_write_links() {
   document.getElementById("ns3_home1").href = ns3_home;
@@ -54,5 +53,4 @@ function ns3_write_links() {
   document.getElementById("ns3_man"  ).href = ns3_man;
   document.getElementById("ns3_mod"  ).href = ns3_mod;
   document.getElementById("ns3_tut"  ).href = ns3_tut;
-  document.getElementById("ns3_ptbr" ).href = ns3_ptbr;
 }

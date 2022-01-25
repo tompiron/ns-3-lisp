@@ -128,7 +128,7 @@ V4Ping::Receive (Ptr<Socket> socket)
       NS_ASSERT (ipv4.GetProtocol () == 1); // protocol should be icmp.
       Icmpv4Header icmp;
       p->RemoveHeader (icmp);
-      if (icmp.GetType () == Icmpv4Header::ECHO_REPLY)
+      if (icmp.GetType () == Icmpv4Header::ICMPV4_ECHO_REPLY)
         {
           Icmpv4Echo echo;
           p->RemoveHeader (echo);
@@ -163,7 +163,7 @@ V4Ping::Receive (Ptr<Socket> socket)
                           std::cout << recvSize << " bytes from " << realFrom.GetIpv4 () << ":"
                                     << " icmp_seq=" << echo.GetSequenceNumber ()
                                     << " ttl=" << (unsigned)ipv4.GetTtl ()
-                                    << " time=" << delta.GetMilliSeconds () << " ms\n";
+                                    << " time=" << delta.As (Time::MS) << "\n";
                         }
                     }
                 }
@@ -225,7 +225,7 @@ V4Ping::Send ()
   echo.SetData (dataPacket);
   p->AddHeader (echo);
   Icmpv4Header header;
-  header.SetType (Icmpv4Header::ECHO);
+  header.SetType (Icmpv4Header::ICMPV4_ECHO);
   header.SetCode (0);
   if (Node::ChecksumEnabled ())
     {
@@ -246,7 +246,7 @@ V4Ping::StartApplication (void)
   m_started = Simulator::Now ();
   if (m_verbose)
     {
-      std::cout << "PING  " << m_remote << " 56(84) bytes of data.\n";
+      std::cout << "PING " << m_remote << " - " << m_size << " bytes of data - " << m_size + 28 << " bytes including ICMP and IPv4 headers.\n";
     }
 
   m_socket = Socket::CreateSocket (GetNode (), TypeId::LookupByName ("ns3::Ipv4RawSocketFactory"));
@@ -284,7 +284,7 @@ V4Ping::StopApplication (void)
       os << "--- " << m_remote << " ping statistics ---\n" 
          << m_seq << " packets transmitted, " << m_recv << " received, "
          << ((m_seq - m_recv) * 100 / m_seq) << "% packet loss, "
-         << "time " << (Simulator::Now () - m_started).GetMilliSeconds () << "ms\n";
+         << "time " << (Simulator::Now () - m_started).As (Time::MS) << "\n";
 
       if (m_avgRtt.Count () > 0)
         os << "rtt min/avg/max/mdev = " << m_avgRtt.Min () << "/" << m_avgRtt.Avg () << "/"

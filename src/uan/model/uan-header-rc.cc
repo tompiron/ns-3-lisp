@@ -20,6 +20,7 @@
 
 
 #include "uan-header-rc.h"
+#include "ns3/mac8-address.h"
 
 #include <set>
 
@@ -95,7 +96,7 @@ void
 UanHeaderRcData::Serialize (Buffer::Iterator start) const
 {
   start.WriteU8 (m_frameNo);
-  start.WriteU16 ( (uint16_t)(1000.0 * m_propDelay.GetSeconds () + 0.5));
+  start.WriteU16 ( (uint16_t) m_propDelay.RoundTo (Time::MS).GetMilliSeconds ());
 }
 uint32_t
 UanHeaderRcData::Deserialize (Buffer::Iterator start)
@@ -109,9 +110,15 @@ UanHeaderRcData::Deserialize (Buffer::Iterator start)
 }
 
 void
+UanHeaderRcData::Print (std::ostream &os, Time::Unit unit) const
+{
+  os << "Frame No=" << (uint32_t) m_frameNo << " Prop Delay=" << m_propDelay.As (unit);
+}
+
+void
 UanHeaderRcData::Print (std::ostream &os) const
 {
-  os << "Frame No=" << (uint32_t) m_frameNo << " Prop Delay=" << m_propDelay.GetSeconds ();
+  Print (os, Time::S);
 }
 
 TypeId
@@ -231,8 +238,7 @@ UanHeaderRcRts::Serialize (Buffer::Iterator start) const
   start.WriteU8 (m_retryNo);
   start.WriteU8 (m_noFrames);
   start.WriteU16 (m_length);
-  start.WriteU32 ((uint32_t)(m_timeStamp.GetSeconds () * 1000.0 + 0.5));
-  // start.WriteU16(uint16_t (m_timeStamp.GetSeconds ()*1000));
+  start.WriteU32 ((uint32_t) (m_timeStamp.RoundTo (Time::MS).GetMilliSeconds ()));
 }
 
 uint32_t
@@ -249,9 +255,15 @@ UanHeaderRcRts::Deserialize (Buffer::Iterator start)
 }
 
 void
+UanHeaderRcRts::Print (std::ostream &os, Time::Unit unit) const
+{
+  os << "Frame #=" << (uint32_t) m_frameNo << " Retry #=" << (uint32_t) m_retryNo << " Num Frames=" << (uint32_t) m_noFrames << "Length=" << m_length << " Time Stamp=" << m_timeStamp.As (unit);
+}
+
+void
 UanHeaderRcRts::Print (std::ostream &os) const
 {
-  os << "Frame #=" << (uint32_t) m_frameNo << " Retry #=" << (uint32_t) m_retryNo << " Num Frames=" << (uint32_t) m_noFrames << "Length=" << m_length << " Time Stamp=" << m_timeStamp.GetSeconds ();
+  Print(os, Time::S);
 }
 
 TypeId
@@ -357,8 +369,8 @@ UanHeaderRcCtsGlobal::Serialize (Buffer::Iterator start) const
 {
   start.WriteU16 (m_rateNum);
   start.WriteU16 (m_retryRate);
-  start.WriteU32 ( (uint32_t)(m_timeStampTx.GetSeconds () * 1000.0 + 0.5));
-  start.WriteU32 ( (uint32_t)(m_winTime.GetSeconds () * 1000.0 + 0.5));
+  start.WriteU32 ( (uint32_t) (m_timeStampTx.RoundTo (Time::MS).GetMilliSeconds ()));
+  start.WriteU32 ( (uint32_t) (m_winTime.RoundTo (Time::MS).GetMilliSeconds ()));
 }
 
 uint32_t
@@ -374,9 +386,15 @@ UanHeaderRcCtsGlobal::Deserialize (Buffer::Iterator start)
 }
 
 void
+UanHeaderRcCtsGlobal::Print (std::ostream &os, Time::Unit unit) const
+{
+  os << "CTS Global (Rate #=" << m_rateNum << ", Retry Rate=" << m_retryRate << ", TX Time=" << m_timeStampTx.As (Time::S) << ", Win Time=" << m_winTime.As (Time::S) << ")";
+}
+
+void
 UanHeaderRcCtsGlobal::Print (std::ostream &os) const
 {
-  os << "CTS Global (Rate #=" << m_rateNum << ", Retry Rate=" << m_retryRate << ", TX Time=" << m_timeStampTx.GetSeconds () << ", Win Time=" << m_winTime.GetSeconds () << ")";
+  Print(os, Time::S);
 }
 
 TypeId
@@ -391,12 +409,12 @@ UanHeaderRcCts::UanHeaderRcCts ()
     m_timeStampRts (Seconds (0)),
     m_retryNo (0),
     m_delay (Seconds (0)),
-    m_address (UanAddress::GetBroadcast ())
+    m_address (Mac8Address::GetBroadcast ())
 {
 
 }
 
-UanHeaderRcCts::UanHeaderRcCts (uint8_t frameNo, uint8_t retryNo, Time ts, Time delay, UanAddress addr)
+UanHeaderRcCts::UanHeaderRcCts (uint8_t frameNo, uint8_t retryNo, Time ts, Time delay, Mac8Address addr)
   : Header (),
     m_frameNo (frameNo),
     m_timeStampRts (ts),
@@ -450,7 +468,7 @@ UanHeaderRcCts::SetRetryNo (uint8_t no)
 }
 
 void
-UanHeaderRcCts::SetAddress (UanAddress addr)
+UanHeaderRcCts::SetAddress (Mac8Address addr)
 {
   m_address = addr;
 }
@@ -478,7 +496,7 @@ UanHeaderRcCts::GetRetryNo () const
   return m_retryNo;
 }
 
-UanAddress
+Mac8Address
 UanHeaderRcCts::GetAddress () const
 {
   return m_address;
@@ -494,18 +512,20 @@ UanHeaderRcCts::GetSerializedSize (void) const
 void
 UanHeaderRcCts::Serialize (Buffer::Iterator start) const
 {
-  start.WriteU8 (m_address.GetAsInt ());
+  uint8_t address = 0;
+  m_address.CopyTo (&address);
+  start.WriteU8 (address);
   start.WriteU8 (m_frameNo);
   start.WriteU8 (m_retryNo);
-  start.WriteU32 ((uint32_t)(m_timeStampRts.GetSeconds () * 1000.0 + 0.5));
-  start.WriteU32 ((uint32_t)(m_delay.GetSeconds () * 1000.0 + 0.5));
+  start.WriteU32 ((uint32_t) (m_timeStampRts.RoundTo (Time::MS).GetMilliSeconds ()));
+  start.WriteU32 ((uint32_t) (m_delay.RoundTo (Time::MS).GetMilliSeconds ()));
 }
 
 uint32_t
 UanHeaderRcCts::Deserialize (Buffer::Iterator start)
 {
   Buffer::Iterator rbuf = start;
-  m_address = UanAddress (rbuf.ReadU8 ());
+  m_address = Mac8Address (rbuf.ReadU8 ());
   m_frameNo = rbuf.ReadU8 ();
   m_retryNo = rbuf.ReadU8 ();
   m_timeStampRts = Seconds ( ( (double) rbuf.ReadU32 ()) / 1000.0 );
@@ -515,9 +535,15 @@ UanHeaderRcCts::Deserialize (Buffer::Iterator start)
 }
 
 void
+UanHeaderRcCts::Print (std::ostream &os, Time::Unit unit) const
+{
+  os << "CTS (Addr=" << m_address << " Frame #=" << (uint32_t) m_frameNo << " Retry #=" << (uint32_t) m_retryNo << " RTS Rx Timestamp=" << m_timeStampRts.As (unit) << " Delay until TX=" << m_delay.As (unit) << ")";
+}
+
+void
 UanHeaderRcCts::Print (std::ostream &os) const
 {
-  os << "CTS (Addr=" << m_address << " Frame #=" << (uint32_t) m_frameNo << " Retry #=" << (uint32_t) m_retryNo << " RTS Rx Timestamp=" << m_timeStampRts.GetSeconds () << " Delay until TX=" << m_delay.GetSeconds () << ")";
+  Print (os, Time::S);
 }
 
 TypeId
@@ -574,7 +600,7 @@ UanHeaderRcAck::GetFrameNo (void) const
 uint8_t
 UanHeaderRcAck::GetNoNacks (void) const
 {
-  return m_nackedFrames.size ();
+  return static_cast<uint8_t> (m_nackedFrames.size ());
 }
 
 uint32_t

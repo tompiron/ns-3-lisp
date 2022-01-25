@@ -25,13 +25,17 @@
 
 #include "ns3/trace-helper.h"
 #include "ns3/wifi-phy.h"
+#include "ns3/qos-utils.h"
+#include "ns3/deprecated.h"
 #include "wifi-mac-helper.h"
+#include <functional>
 
 namespace ns3 {
 
-class WifiPhy;
 class WifiNetDevice;
 class Node;
+class RadiotapHeader;
+class QueueItem;
 
 /**
  * \brief create PHY objects
@@ -98,6 +102,71 @@ public:
                           std::string n5 = "", const AttributeValue &v5 = EmptyAttributeValue (),
                           std::string n6 = "", const AttributeValue &v6 = EmptyAttributeValue (),
                           std::string n7 = "", const AttributeValue &v7 = EmptyAttributeValue ());
+  /**
+   * \param name the name of the frame capture model to set.
+   * \param n0 the name of the attribute to set
+   * \param v0 the value of the attribute to set
+   * \param n1 the name of the attribute to set
+   * \param v1 the value of the attribute to set
+   * \param n2 the name of the attribute to set
+   * \param v2 the value of the attribute to set
+   * \param n3 the name of the attribute to set
+   * \param v3 the value of the attribute to set
+   * \param n4 the name of the attribute to set
+   * \param v4 the value of the attribute to set
+   * \param n5 the name of the attribute to set
+   * \param v5 the value of the attribute to set
+   * \param n6 the name of the attribute to set
+   * \param v6 the value of the attribute to set
+   * \param n7 the name of the attribute to set
+   * \param v7 the value of the attribute to set
+   *
+   * Set the frame capture model and its attributes to use when Install is called.
+   */
+  void SetFrameCaptureModel (std::string name,
+                             std::string n0 = "", const AttributeValue &v0 = EmptyAttributeValue (),
+                             std::string n1 = "", const AttributeValue &v1 = EmptyAttributeValue (),
+                             std::string n2 = "", const AttributeValue &v2 = EmptyAttributeValue (),
+                             std::string n3 = "", const AttributeValue &v3 = EmptyAttributeValue (),
+                             std::string n4 = "", const AttributeValue &v4 = EmptyAttributeValue (),
+                             std::string n5 = "", const AttributeValue &v5 = EmptyAttributeValue (),
+                             std::string n6 = "", const AttributeValue &v6 = EmptyAttributeValue (),
+                             std::string n7 = "", const AttributeValue &v7 = EmptyAttributeValue ());
+  /**
+   * \param name the name of the preamble detection model to set.
+   * \param n0 the name of the attribute to set
+   * \param v0 the value of the attribute to set
+   * \param n1 the name of the attribute to set
+   * \param v1 the value of the attribute to set
+   * \param n2 the name of the attribute to set
+   * \param v2 the value of the attribute to set
+   * \param n3 the name of the attribute to set
+   * \param v3 the value of the attribute to set
+   * \param n4 the name of the attribute to set
+   * \param v4 the value of the attribute to set
+   * \param n5 the name of the attribute to set
+   * \param v5 the value of the attribute to set
+   * \param n6 the name of the attribute to set
+   * \param v6 the value of the attribute to set
+   * \param n7 the name of the attribute to set
+   * \param v7 the value of the attribute to set
+   *
+   * Set the preamble detection model and its attributes to use when Install is called.
+   */
+  void SetPreambleDetectionModel (std::string name,
+                                  std::string n0 = "", const AttributeValue &v0 = EmptyAttributeValue (),
+                                  std::string n1 = "", const AttributeValue &v1 = EmptyAttributeValue (),
+                                  std::string n2 = "", const AttributeValue &v2 = EmptyAttributeValue (),
+                                  std::string n3 = "", const AttributeValue &v3 = EmptyAttributeValue (),
+                                  std::string n4 = "", const AttributeValue &v4 = EmptyAttributeValue (),
+                                  std::string n5 = "", const AttributeValue &v5 = EmptyAttributeValue (),
+                                  std::string n6 = "", const AttributeValue &v6 = EmptyAttributeValue (),
+                                  std::string n7 = "", const AttributeValue &v7 = EmptyAttributeValue ());
+
+  /**
+   * Disable the preamble detection model.
+   */
+  void DisablePreambleDetectionModel ();
 
   /**
    * An enumeration of the pcap data link types (DLTs) which this helper
@@ -116,20 +185,21 @@ public:
    * called before EnablePcap(), so that the header of the pcap file can be
    * written correctly.
    *
-   * @see SupportedPcapDataLinkTypes
+   * \see SupportedPcapDataLinkTypes
    *
-   * @param dlt The data link type of the pcap file (and packets) to be used
+   * \param dlt The data link type of the pcap file (and packets) to be used
    */
-  void SetPcapDataLinkType (enum SupportedPcapDataLinkTypes dlt);
+  void SetPcapDataLinkType (SupportedPcapDataLinkTypes dlt);
 
   /**
    * Get the data link type of PCAP traces to be used.
    *
-   * @see SupportedPcapDataLinkTypes
+   * \see SupportedPcapDataLinkTypes
    *
-   * @returns The data link type of the pcap file (and packets) to be used
+   * \returns The data link type of the pcap file (and packets) to be used
    */
   PcapHelper::DataLinkType GetPcapDataLinkType (void) const;
+
 
 protected:
   /**
@@ -138,66 +208,109 @@ protected:
    * \param channelFreqMhz the channel frequency
    * \param txVector the TXVECTOR
    * \param aMpdu the A-MPDU information
+   * \param staId the STA-ID (only used for MU)
    *
-   * Handle tx pcap.
+   * Handle TX pcap.
    */
   static void PcapSniffTxEvent (Ptr<PcapFileWrapper> file,
                                 Ptr<const Packet> packet,
                                 uint16_t channelFreqMhz,
                                 WifiTxVector txVector,
-                                MpduInfo aMpdu);
+                                MpduInfo aMpdu,
+                                uint16_t staId = SU_STA_ID);
   /**
    * \param file the pcap file wrapper
    * \param packet the packet
    * \param channelFreqMhz the channel frequency
    * \param txVector the TXVECTOR
    * \param aMpdu the A-MPDU information
-   * \param signalNoise the rx signal and noise information
+   * \param signalNoise the RX signal and noise information
+   * \param staId the STA-ID (only used for MU)
    *
-   * Handle rx pcap.
+   * Handle RX pcap.
    */
   static void PcapSniffRxEvent (Ptr<PcapFileWrapper> file,
                                 Ptr<const Packet> packet,
                                 uint16_t channelFreqMhz,
                                 WifiTxVector txVector,
                                 MpduInfo aMpdu,
-                                SignalNoiseDbm signalNoise);
+                                SignalNoiseDbm signalNoise,
+                                uint16_t staId = SU_STA_ID);
 
   ObjectFactory m_phy; ///< PHY object
   ObjectFactory m_errorRateModel; ///< error rate model
+  ObjectFactory m_frameCaptureModel; ///< frame capture model
+  ObjectFactory m_preambleDetectionModel; ///< preamble detection model
+
 
 private:
   /**
-   * @brief Enable pcap output the indicated net device.
+   * Get the Radiotap header for a transmitted packet.
+   *
+   * \param header the radiotap header to be filled in
+   * \param packet the packet
+   * \param channelFreqMhz the channel frequency
+   * \param txVector the TXVECTOR
+   * \param aMpdu the A-MPDU information
+   * \param staId the STA-ID
+   */
+  static void GetRadiotapHeader (RadiotapHeader &header,
+                                 Ptr<Packet> packet,
+                                 uint16_t channelFreqMhz,
+                                 WifiTxVector txVector,
+                                 MpduInfo aMpdu,
+                                 uint16_t staId);
+
+  /**
+   * Get the Radiotap header for a received packet.
+   *
+   * \param header the radiotap header to be filled in
+   * \param packet the packet
+   * \param channelFreqMhz the channel frequency
+   * \param txVector the TXVECTOR
+   * \param aMpdu the A-MPDU information
+   * \param staId the STA-ID
+   * \param signalNoise the rx signal and noise information
+   */
+  static void GetRadiotapHeader (RadiotapHeader &header,
+                                 Ptr<Packet> packet,
+                                 uint16_t channelFreqMhz,
+                                 WifiTxVector txVector,
+                                 MpduInfo aMpdu,
+                                 uint16_t staId,
+                                 SignalNoiseDbm signalNoise);
+
+  /**
+   * \brief Enable pcap output the indicated net device.
    *
    * NetDevice-specific implementation mechanism for hooking the trace and
    * writing to the trace file.
    *
-   * @param prefix Filename prefix to use for pcap files.
-   * @param nd Net device for which you want to enable tracing.
-   * @param promiscuous If true capture all possible packets available at the device.
-   * @param explicitFilename Treat the prefix as an explicit filename if true
+   * \param prefix Filename prefix to use for pcap files.
+   * \param nd Net device for which you want to enable tracing.
+   * \param promiscuous If true capture all possible packets available at the device.
+   * \param explicitFilename Treat the prefix as an explicit filename if true
    */
   virtual void EnablePcapInternal (std::string prefix,
                                    Ptr<NetDevice> nd,
                                    bool promiscuous,
-                                   bool explicitFilename);
+                                   bool explicitFilename) override;
 
   /**
-   * \brief Enable ascii trace output on the indicated net device.
+   * \brief Enable ASCII trace output on the indicated net device.
    *
    * NetDevice-specific implementation mechanism for hooking the trace and
    * writing to the trace file.
    *
-   * \param stream The output stream object to use when logging ascii traces.
-   * \param prefix Filename prefix to use for ascii trace files.
+   * \param stream The output stream object to use when logging ASCII traces.
+   * \param prefix Filename prefix to use for ASCII trace files.
    * \param nd Net device for which you want to enable tracing.
    * \param explicitFilename Treat the prefix as an explicit filename if true
    */
   virtual void EnableAsciiInternal (Ptr<OutputStreamWrapper> stream,
                                     std::string prefix,
                                     Ptr<NetDevice> nd,
-                                    bool explicitFilename);
+                                    bool explicitFilename) override;
 
   PcapHelper::DataLinkType m_pcapDlt; ///< PCAP data link type
 };
@@ -224,19 +337,6 @@ public:
    * By default, configure MAC and PHY for 802.11a.
    */
   WifiHelper ();
-
-  /**
-   * \returns a new WifiHelper in a default state
-   *
-   * The default state is defined as being an Adhoc MAC layer with an ARF rate control algorithm
-   * and both objects using their default attribute values. By default, configure MAC and PHY
-   * for 802.11a.
-   *
-   * \deprecated This method will go away in future versions of ns-3.
-   * The constructor of the class is now performing the same job, which makes this function useless.
-   */
-  NS_DEPRECATED
-  static WifiHelper Default (void);
 
   /**
    * \param type the type of ns3::WifiRemoteStationManager to create.
@@ -269,6 +369,49 @@ public:
                                 std::string n5 = "", const AttributeValue &v5 = EmptyAttributeValue (),
                                 std::string n6 = "", const AttributeValue &v6 = EmptyAttributeValue (),
                                 std::string n7 = "", const AttributeValue &v7 = EmptyAttributeValue ());
+
+  /**
+   * \param type the type of ns3::ObssPdAlgorithm to create.
+   * \param n0 the name of the attribute to set
+   * \param v0 the value of the attribute to set
+   * \param n1 the name of the attribute to set
+   * \param v1 the value of the attribute to set
+   * \param n2 the name of the attribute to set
+   * \param v2 the value of the attribute to set
+   * \param n3 the name of the attribute to set
+   * \param v3 the value of the attribute to set
+   * \param n4 the name of the attribute to set
+   * \param v4 the value of the attribute to set
+   * \param n5 the name of the attribute to set
+   * \param v5 the value of the attribute to set
+   * \param n6 the name of the attribute to set
+   * \param v6 the value of the attribute to set
+   * \param n7 the name of the attribute to set
+   * \param v7 the value of the attribute to set
+   *
+   * All the attributes specified in this method should exist
+   * in the requested algorithm.
+   */
+  void SetObssPdAlgorithm (std::string type,
+                           std::string n0 = "", const AttributeValue &v0 = EmptyAttributeValue (),
+                           std::string n1 = "", const AttributeValue &v1 = EmptyAttributeValue (),
+                           std::string n2 = "", const AttributeValue &v2 = EmptyAttributeValue (),
+                           std::string n3 = "", const AttributeValue &v3 = EmptyAttributeValue (),
+                           std::string n4 = "", const AttributeValue &v4 = EmptyAttributeValue (),
+                           std::string n5 = "", const AttributeValue &v5 = EmptyAttributeValue (),
+                           std::string n6 = "", const AttributeValue &v6 = EmptyAttributeValue (),
+                           std::string n7 = "", const AttributeValue &v7 = EmptyAttributeValue ());
+
+  /// Callback invoked to determine the MAC queue selected for a given packet
+  typedef std::function<std::size_t (Ptr<QueueItem>)> SelectQueueCallback;
+
+  /**
+   * \param f the select queue callback
+   *
+   * Set the select queue callback to set on the NetDevice queue interface aggregated
+   * to the WifiNetDevice, in case RegularWifiMac with QoS enabled is used
+   */
+  void SetSelectQueueCallback (SelectQueueCallback f);
   /**
    * \param phy the PHY helper to create PHY objects
    * \param mac the MAC helper to create MAC objects
@@ -278,9 +421,9 @@ public:
    */
   NetDeviceContainer
   virtual Install (const WifiPhyHelper &phy,
-                       const WifiMacHelper &mac,
-                       NodeContainer::Iterator first,
-                       NodeContainer::Iterator last) const;
+                   const WifiMacHelper &mac,
+                   NodeContainer::Iterator first,
+                   NodeContainer::Iterator last) const;
   /**
    * \param phy the PHY helper to create PHY objects
    * \param mac the MAC helper to create MAC objects
@@ -306,13 +449,13 @@ public:
   virtual NetDeviceContainer Install (const WifiPhyHelper &phy,
                                       const WifiMacHelper &mac, std::string nodeName) const;
   /**
-   * \param standard the phy standard to configure during installation
+   * \param standard the standard to configure during installation
    *
    * This method sets standards-compliant defaults for WifiMac
-   * parameters such as sifs time, slot time, timeout values, etc.,
+   * parameters such as SIFS time, slot time, timeout values, etc.,
    * based on the standard selected.  It results in
    * WifiMac::ConfigureStandard(standard) being called on each
-   * installed mac object.
+   * installed MAC object.
    *
    * The default standard of 802.11a will be applied if SetStandard()
    * is not called.
@@ -329,7 +472,7 @@ public:
    * \sa WifiMac::ConfigureStandard
    * \sa Config::Set
    */
-  virtual void SetStandard (enum WifiPhyStandard standard);
+  virtual void SetStandard (WifiStandard standard);
 
   /**
    * Helper to enable all WifiNetDevice log components with one statement
@@ -338,7 +481,7 @@ public:
 
   /**
   * Assign a fixed random variable stream number to the random variables
-  * used by the Phy and Mac aspects of the Wifi models.  Each device in
+  * used by the PHY and MAC aspects of the Wifi models.  Each device in
   * container c has fixed stream numbers assigned to its random variables.
   * The Wifi channel (e.g. propagation loss model) is excluded.
   * Return the number of streams (possibly zero) that
@@ -354,8 +497,11 @@ public:
 
 
 protected:
-  ObjectFactory m_stationManager; ///< station manager
-  enum WifiPhyStandard m_standard; ///< wifi standard
+  ObjectFactory m_stationManager;            ///< station manager
+  ObjectFactory m_ackPolicySelector[4];      ///< ack policy selector for all ACs
+  WifiStandard m_standard;                   ///< wifi standard
+  SelectQueueCallback m_selectQueueCallback; ///< select queue callback
+  ObjectFactory m_obssPdAlgorithm;           ///< OBSS_PD algorithm
 };
 
 } //namespace ns3

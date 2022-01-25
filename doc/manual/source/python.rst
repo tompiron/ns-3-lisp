@@ -1,6 +1,13 @@
 .. include:: replace.txt
 .. highlight:: python
 
+.. heading hierarchy:
+   ------------- Chapter
+   ************* Section (#.#)
+   ============= Subsection (#.#.#)
+   ############# Paragraph (no number)
+
+
 Using Python to Run |ns3|
 -------------------------
 
@@ -102,6 +109,16 @@ and the other is to use the --pyrun option to waf:
 
   $ ./waf --pyrun examples/wireless/mixed-wireless.py
 
+As of ns-3.30, a --pyrun-no-build option was added to allow the running of
+a program without invoking a project rebuild.  This option may be useful
+to improve execution time when running the same program repeatedly but with
+different arguments, such as from scripts. It can be used in place of
+--pyrun such as:
+
+.. sourcecode:: bash
+
+  $ ./waf --pyrun-no-build examples/wireless/mixed-wireless.py
+
 To run a python script under the C debugger:
 
 .. sourcecode:: bash
@@ -122,18 +139,18 @@ Caveats
 Python bindings for |ns3| are a work in progress, and some limitations are known by developers.  Some of these limitations (not all) are listed here.
 
 Incomplete Coverage
-+++++++++++++++++++
+===================
 
 First of all, keep in mind that not 100% of the API is supported in Python.  Some of the reasons are:
 
 #. some of the APIs involve pointers, which require knowledge of what kind of memory passing semantics (who owns what memory). Such knowledge is not part of the function signatures, and is either documented or sometimes not even documented.  Annotations are needed to bind those functions;
 #. Sometimes a unusual fundamental data type or C++ construct is used which is not yet supported by PyBindGen;
-#. GCC-XML does not report template based classes unless they are instantiated. (Note:  Need to confirm this limitation still exists with CastXML)
+#. CastXML does not report template based classes unless they are instantiated. 
 
 Most of the missing APIs can be wrapped, given enough time, patience, and expertise, and will likely be wrapped if bug reports are submitted.  However, don't file a bug report saying "bindings are incomplete", because we do not have manpower to complete 100% of the bindings.
 
 Conversion Constructors
-+++++++++++++++++++++++
+=======================
 
 `Conversion constructors <http://publib.boulder.ibm.com/infocenter/compbgpl/v9v111/topic/com.ibm.xlcpp9.bg.doc/language_ref/cplr384.htm>`_ are not fully supported yet by PyBindGen, and they always act as explicit constructors when translating an API into Python.  For example, in C++ you can do this:
 
@@ -152,7 +169,7 @@ In Python, for the time being you have to do:
  ipAddrs.Assign(backboneDevices)
 
 CommandLine
-+++++++++++
+===========
 
 :cpp:func:`CommandLine::AddValue` works differently in Python than it does in |ns3|.  In Python, the first parameter is a string that represents the command-line option name.  When the option is set, an attribute with the same name as the option name is set on the :cpp:func:`CommandLine` object.  Example:
 
@@ -175,7 +192,7 @@ CommandLine
         num_nodes_side = int(cmd.NumNodesSide)
 
 Tracing
-+++++++
+=======
 
 Callback based tracing is not yet properly supported for Python, as new |ns3| API needs to be provided for this to be supported.
 
@@ -198,28 +215,8 @@ Working with Python Bindings
 
 Python bindings are built on a module-by-module basis, and can be found in each module's  ``bindings`` directory. 
 
-Python Bindings Workflow
-++++++++++++++++++++++++
-
-The process by which Python bindings are handled is the following:
-
-#. Periodically a developer uses a CastXML (https://github.com/CastXML/CastXML) based API scanning script, which saves the scanned API definition as ``bindings/python/ns3_module_*.py`` files or as Python files in each modules' ``bindings`` directory.  These files are kept under version control in the main |ns3| repository;
-#. Other developers clone the repository and use the already scanned API definitions;
-#. When configuring |ns3|, pybindgen will be automatically downloaded if not already installed.  Released |ns3| tarballs will ship a copy of pybindgen.
-
-If something goes wrong with compiling Python bindings and you just want to ignore them and move on with C++, you can disable Python with:
-
-.. sourcecode:: bash
-
-  $ ./waf --disable-python
-
-Instructions for Handling New Files or Changed API's
-****************************************************
-
-So you have been changing existing |ns3| APIs and Python bindings no longer compile?  Do not despair, you can rescan the bindings to create new bindings that reflect the changes to the |ns3| API.
-
 Overview
-++++++++
+========
 
 The python bindings are generated into an 'ns' namespace.  Examples:
 
@@ -241,63 +238,20 @@ example.  There is no structured documentation for the Python bindings
 like there is Doxygen for the C++ API, but the Doxygen can be consulted
 to understand how the C++ API works.
 
-Scanning the Modular Python Bindings
-++++++++++++++++++++++++++++++++++++
+Python Bindings Workflow
+========================
 
-Scanning of the C++ API is only necessary if a user is using Python and
-is changing the C++ API to introduce new methods (that he or she wishes
-to be accessible from Python) or is changing the C++ API in a way that
-breaks the compilation of the existing Python bindings.
+The process by which Python bindings are handled is the following:
 
-There are two steps.  First, the bindings toolchain must be enabled in
-the |ns3| build.  This requires that the castxml and pygccxml tools be
-installed on the system or using the bake build tool.  Second, Waf
-can be used to update the bindings.
+#. Periodically a developer uses a CastXML (https://github.com/CastXML/CastXML) based API scanning script, which saves the scanned API definition as ``bindings/python/ns3_module_*.py`` files or as Python files in each modules' ``bindings`` directory.  These files are kept under version control in the main |ns3| repository;
+#. Other developers clone the repository and use the already scanned API definitions;
+#. When configuring |ns3|, pybindgen will be automatically downloaded if not already installed.  Released |ns3| tarballs will ship a copy of pybindgen.
 
-The output of './waf configure' can be inspected to see if Python API scanning
-support is enabled:
-
-::
-
-  Python API Scanning Support   : enabled
-
-It may say something like this, if the support is not active:
-
-::
-
-  Python API Scanning Support   : not enabled (Missing 'pygccxml' Python module)
-
-In this case, the user must take steps to install castxml and pygccxml;
-castxml binary must be in the shell's path, and pygccxml must be in the
-Python path.
-
-An automated setup for this is provided by the `bake` build system, if the
-user selects the 'ns-allinone-3.nn' configuration target (where 'nn' is the
-release number.  For example:
-
-::
-
-  ./bake.py configure -e ns-allinone-3.27
-  ./bake.py download
-  ./bake.py build
-
-Once API scanning support is enabled, to scan the modular Python bindings 
-for the core module, for example, do the following:
+If something goes wrong with compiling Python bindings and you just want to ignore them and move on with C++, you can disable Python with:
 
 .. sourcecode:: bash
 
-  $ ./waf --apiscan=core --no32bit-scan
-
-To scan the modular Python bindings for all of the modules, do the following:
-
-.. sourcecode:: bash
-
-  $ ./waf --apiscan=all --no32bit-scan
-
-The ``--no32bit-scan`` flag is described below.
-
-Adding Modular Bindings To A Existing or New Module
-+++++++++++++++++++++++++++++++++++++++++++++++++++
+  $ ./waf configure --disable-python ...
 
 To add support for modular bindings to an existing or new |ns3| module, simply add the following line to its wscript build() function:
 
@@ -308,8 +262,215 @@ To add support for modular bindings to an existing or new |ns3| module, simply a
 One must also provide the bindings files (usually by running the scanning
 framework).
 
-Differences between MacOS and Linux bindings
-++++++++++++++++++++++++++++++++++++++++++++
+Regenerating the Python bindings
+================================
+
+|ns3| will fail to successfully compile the Python bindings if the C++
+headers are changed and no longer align with the stored Python bindings.
+In this case, the developer has two main choices:  1) disable Python
+as described above, or 2) update the bindings to align with the new C++
+API.
+
+Process Overview
+################
+
+|ns3| has an automated process to regenerate Python bindings from the C++
+header files.  The process is only supported for Linux at the moment
+(ns-3.33) because the project has not found a contributor yet to test and
+document the capability on macOS. In short, the process currently 
+requires the following steps on a Linux machine.
+
+1.  Prepare the system for scanning by installing the prerequisites,
+    including a development version of ``clang``, the ``CastXML`` package,
+    ``pygccxml``, and ``pybindgen``.
+2.  Perform a scan of the module of interest or all modules
+
+Installing a clang development environment
+##########################################
+
+Make sure you have a development version of the clang compiler installed
+on your system.  This can take a long time to build from source.  Linux
+distributions provide binary library packages such as ``libclang-dev``
+(Ubuntu) or ``clang-devel`` (Fedora).
+
+Installing other prerequisites
+##############################
+
+``cxxfilt`` is a new requirement, typically installed using ``pip`` or ``pip3``; e.g.
+
+.. sourcecode:: bash
+
+    pip3 install --user cxxfilt
+
+See also the wiki for installation notes for your system.
+
+Set up a ``bake`` build environment
+###################################
+
+Try the following commands:
+
+.. sourcecode:: bash
+
+    $ cd bake
+    $ export PATH=`pwd`/build/bin:$PATH
+    $ export LD_LIBRARY_PATH=`pwd`/build/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+    $ export PYTHONPATH=`pwd`/build/lib${PYTHONPATH:+:$PYTHONPATH}
+    $ mkdir -p build/lib
+
+Configure
+#########
+
+Perform a configuration at the bake level:
+
+.. sourcecode:: bash
+
+    $ ./bake.py configure -e ns-3-dev -e pygccxml
+
+The output of ``./bake.py show`` should show something like this: 
+
+
+.. sourcecode:: bash
+
+    $ ./bake.py show
+
+Should say (note:  some are OK to be 'Missing' for Python bindings scanning):
+
+.. sourcecode:: text
+
+    -- System Dependencies --
+     > clang-dev - OK
+     > cmake - OK
+     > cxxfilt - OK
+     > g++ - OK
+     > gi-cairo - OK or Missing
+     > gir-bindings - OK or Missing
+     > llvm-dev - OK
+     > pygobject - OK or Missing
+     > pygraphviz - OK or Missing
+     > python3-dev - OK
+     > python3-setuptools - OK
+     > qt - OK or Missing
+     > setuptools - OK
+
+Note that it is not harmful for Python bindings if some of the items above
+report as Missing.  For Python bindings, the important
+prerequisites are clang-dev, cmake, cxxfilt, llvm-dev, python3-dev,
+and python3-setuptools.  In the following process, the following programs
+and libraries will be locally installed:  castxml, pybindgen, pygccxml,
+and |ns3|. 
+
+Note also that the `ns-3-allinone` target for bake will also include the
+`pygccxml` and `ns-3-dev` targets (among other libraries) and can be
+used instead, e.g.:
+
+.. sourcecode:: bash
+
+    $ ./bake.py configure -e ns-3-allinone
+
+Download
+########
+
+Issue the following download command.  Your output may vary depending on what
+is present or missing on your system.
+
+.. sourcecode:: bash
+
+    $ ./bake.py download
+     >> Searching for system dependency llvm-dev - OK
+     >> Searching for system dependency clang-dev - OK
+     >> Searching for system dependency qt - Problem
+     > Problem: Optional dependency, module "qt" not available
+       This may reduce the  functionality of the final build. 
+       However, bake will continue since "qt" is not an essential dependency.
+       For more information call bake with -v or -vvv, for full verbose mode.
+    
+     >> Searching for system dependency g++ - OK
+     >> Searching for system dependency cxxfilt - OK
+     >> Searching for system dependency setuptools - OK
+     >> Searching for system dependency python3-setuptools - OK
+     >> Searching for system dependency gi-cairo - Problem
+     > Problem: Optional dependency, module "gi-cairo" not available
+       This may reduce the  functionality of the final build. 
+       However, bake will continue since "gi-cairo" is not an essential dependency.
+       For more information call bake with -v or -vvv, for full verbose mode.
+    
+     >> Searching for system dependency gir-bindings - Problem
+     > Problem: Optional dependency, module "gir-bindings" not available
+       This may reduce the  functionality of the final build. 
+       However, bake will continue since "gir-bindings" is not an essential dependency.
+       For more information call bake with -v or -vvv, for full verbose mode.
+    
+     >> Searching for system dependency pygobject - Problem
+     > Problem: Optional dependency, module "pygobject" not available
+       This may reduce the  functionality of the final build. 
+       However, bake will continue since "pygobject" is not an essential dependency.
+       For more information call bake with -v or -vvv, for full verbose mode.
+    
+     >> Searching for system dependency pygraphviz - Problem
+     > Problem: Optional dependency, module "pygraphviz" not available
+       This may reduce the  functionality of the final build. 
+       However, bake will continue since "pygraphviz" is not an essential dependency.
+       For more information call bake with -v or -vvv, for full verbose mode.
+    
+     >> Searching for system dependency python3-dev - OK
+     >> Searching for system dependency cmake - OK
+     >> Downloading castxml - OK
+     >> Downloading netanim - OK
+     >> Downloading pybindgen - OK
+     >> Downloading pygccxml - OK
+     >> Downloading ns-3-dev - OK
+    
+Build
+#####
+
+Next, try the following command:
+
+.. sourcecode:: bash
+
+    $ ./bake.py build
+
+A build report should be printed for each package, such as:
+
+::
+
+     >> Building castxml - OK
+     >> Building netanim - OK
+     >> Building pybindgen - OK
+     >> Building pygccxml - OK
+     >> Building ns-3-dev - OK
+
+However, if there is a problem with the bindings compilation (or with the
+C++ code), it will report a failure instead:
+
+::
+
+     >> Building ns-3-dev - Problem
+     > Error:  Critical dependency, module "ns-3-dev" failed 
+       For more information call Bake with --debug and/or -v, -vvv, for full verbose mode (bake --help)
+
+At this point, it is recommended to change into the ns-3-dev directory and
+work further from there, because the API scanning dependencies have been
+built and installed successfully into the `build` directory.
+The output of './waf configure' can be inspected to see if Python API scanning
+support is enabled:
+
+.. sourcecode:: text
+
+  Python API Scanning Support   : enabled
+
+It may say something like this, if the support is not active or something
+went wrong in the build process:
+
+.. sourcecode:: text
+
+  Python API Scanning Support   : not enabled (Missing 'pygccxml' Python module)
+
+In this case, the user must take additional steps to resolve.  For the
+API scanning support to be detected, the castxml binary must be in the
+shell's PATH, and pygccxml must be in the PYTHONPATH.
+
+LP64 vs ILP32 bindings
+######################
 
 Linux (64-bit, as most modern installations use) and MacOS use different
 data models, as explained here:  https://www.ibm.com/support/knowledgecenter/en/SSLTBW_2.3.0/com.ibm.zos.v2r3.cbcpx01/datatypesize64.htm
@@ -320,33 +481,37 @@ each ns-3 module directory; one with an ILP32.py suffix and one with
 an LP64.py suffix.  Only one is used on any given platform.  The main
 difference is in the representation of the 64 bit integer type as either
 a 'long' (LP64) or 'long long' (ILP32).  
+
+The process (only supported on Linux at present) generates the LP64
+bindings using the toolchain and then copies the LP64 bindings to the
+ILP32 bindings with some type substitutions automated by Waf scripts.
   
-As of ns-3.27, the CastXML framework can generate LP64 bindings by passing
-the ``--no32bit-scan`` flag.  However, the framework does not automatically
-generate 32bit scans at the moment.  Instead, users must manually generate
-the ILP32.py equivalents by taking all instances of 'unsigned long' in the
-bindings file and converting them to 'unsigned long long', such as:
+Rescanning a module
+###################
 
-::
+To re-scan a module:
 
-  -    cls.add_instance_attribute('nMarkedBytes', 'std::map< std::string, unsigned long >', is_const=False)
-  +    cls.add_instance_attribute('nMarkedBytes', 'std::map< std::string, unsigned long long >', is_const=False)
+.. sourcecode:: bash
 
-In summary, to generate LP64 bindings for Linux 64-bit systems, it is
-sufficient to call:
+    $ cd source/ns-3-dev
+    $ ./waf --apiscan=wifi
 
-::
+To re-scan all modules:
 
-  $ ./waf --apiscan=core --no32bit-scan
+.. sourcecode:: bash
 
-To generate ILP32 bindings, one first must generate the LP64.py file as above,
-and then copy the file to be named with an ILP32.py suffix, and then 
-hand-edit that file, replacing all instances of 'unsigned long' with
-'unsigned long long'.  |ns3| maintainers are working to better automate
-this process for future releases.
+    $ cd source/ns-3-dev
+    $ ./waf --apiscan=all
+
+Generating bindings on MacOS
+############################
+
+In principle, this should work (and should generate the 32-bit bindings).
+However, maintainers have not been available to complete this port to date.
+We would welcome suggestions on how to enable scanning for MacOS. 
 
 Organization of the Modular Python Bindings
-+++++++++++++++++++++++++++++++++++++++++++
+===========================================
 
 The ``src/<module>/bindings`` directory may contain the following files, some of them optional:
 
@@ -358,7 +523,8 @@ The ``src/<module>/bindings`` directory may contain the following files, some of
 * ``module_helpers.cc``: you may add additional files, such as this, to be linked to python extension module, but they have to be registered in the wscript. Look at src/core/wscript for an example of how to do so;
 * ``<module>.py``: if this file exists, it becomes the "frontend" python module for the ns3 module, and the extension module (.so file) becomes _<module>.so instead of <module>.so.  The <module>.py file has to import all symbols from the module _<module> (this is more tricky than it sounds, see src/core/bindings/core.py for an example), and then can add some additional pure-python definitions.   
 
-More Information for Developers
-*******************************
+Historical Information
+**********************
 
-If you are a developer and need more information on |ns3|'s Python bindings, please see the `Python Bindings wiki page <http://www.nsnam.org/wiki/NS-3_Python_Bindings>`_.
+If you are a developer and need more background information on |ns3|'s Python bindings, please see the `Python Bindings wiki page <http://www.nsnam.org/wiki/NS-3_Python_Bindings>`_.  Please note, however, that some information on that
+page is stale.

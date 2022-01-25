@@ -24,7 +24,7 @@
 #include "ns3/net-device.h"
 #include "ns3/pointer.h"
 #include "ns3/traced-callback.h"
-#include "uan-address.h"
+#include "ns3/mac8-address.h"
 #include <list>
 
 namespace ns3 {
@@ -148,13 +148,25 @@ public:
   virtual void SetAddress (Address address);
 
   /**
+   * Get the Tx mode index (Modulation type).
+   * \return the Tx mode index
+   */
+  uint32_t GetTxModeIndex ();
+
+  /**
+   * Set the Tx mode index (Modulation type).
+   * \param txModeIndex the Tx mode index
+   */
+  void SetTxModeIndex (uint32_t txModeIndex);
+
+  /**
    * TracedCallback signature for MAC send/receive events.
    *
    * \param [in] packet The Packet.
    * \param [in] address The source address.
    */
   typedef void (* RxTxTracedCallback)
-    (Ptr<const Packet> packet, UanAddress address);
+    (Ptr<const Packet> packet, Mac8Address address);
   
 private:
   /**
@@ -162,8 +174,9 @@ private:
    *
    * \param pkt The packet.
    * \param src The source address.
+   * \param protocolNumber The layer 3 protocol number.
    */
-  virtual void ForwardUp (Ptr<Packet> pkt, const UanAddress &src);
+  virtual void ForwardUp (Ptr<Packet> pkt, uint16_t protocolNumber, const Mac8Address &src);
   
   /** \return The channel attached to this device. */
   Ptr<UanChannel> DoGetChannel (void) const;
@@ -182,9 +195,9 @@ private:
   ReceiveCallback m_forwardUp;     //!< The receive callback.
 
   /** Trace source triggered when forwarding up received payload from the MAC layer. */
-  TracedCallback<Ptr<const Packet>, UanAddress> m_rxLogger;
+  TracedCallback<Ptr<const Packet>, Mac8Address> m_rxLogger;
   /** Trace source triggered when sending to the MAC layer */
-  TracedCallback<Ptr<const Packet>, UanAddress> m_txLogger;
+  TracedCallback<Ptr<const Packet>, Mac8Address> m_txLogger;
 
   /** Flag when we've been cleared. */
   bool m_cleared;

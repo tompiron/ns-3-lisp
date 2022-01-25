@@ -34,6 +34,7 @@
 #include <ns3/ptr.h>
 #include "ns3/radio-bearer-stats-calculator.h"
 #include <ns3/constant-position-mobility-model.h>
+#include <ns3/ff-mac-scheduler.h>
 #include <ns3/eps-bearer.h>
 #include <ns3/node-container.h>
 #include <ns3/mobility-helper.h>
@@ -269,6 +270,10 @@ LenaTdTbfqFfMacSchedulerTestCase1::DoRun (void)
     }
 
   Config::SetDefault ("ns3::LteHelper::UseIdealRrc", BooleanValue (true));
+  Config::SetDefault ("ns3::MacStatsCalculator::DlOutputFilename", StringValue (CreateTempDirFilename ("DlMacStats.txt")));
+  Config::SetDefault ("ns3::MacStatsCalculator::UlOutputFilename", StringValue (CreateTempDirFilename ("UlMacStats.txt")));
+  Config::SetDefault ("ns3::RadioBearerStatsCalculator::DlRlcOutputFilename", StringValue (CreateTempDirFilename ("DlRlcStats.txt")));
+  Config::SetDefault ("ns3::RadioBearerStatsCalculator::UlRlcOutputFilename", StringValue (CreateTempDirFilename ("UlRlcStats.txt")));
 
   Ptr<LteHelper> lteHelper = CreateObject<LteHelper> ();
   Ptr<PointToPointEpcHelper>  epcHelper = CreateObject<PointToPointEpcHelper> ();
@@ -330,6 +335,7 @@ LenaTdTbfqFfMacSchedulerTestCase1::DoRun (void)
   NetDeviceContainer enbDevs;
   NetDeviceContainer ueDevs;
   lteHelper->SetSchedulerType ("ns3::TdTbfqFfMacScheduler");
+  lteHelper->SetSchedulerAttribute ("UlCqiFilter", EnumValue (FfMacScheduler::SRS_UL_CQI));
   enbDevs = lteHelper->InstallEnbDevice (enbNodes);
   ueDevs = lteHelper->InstallUeDevice (ueNodes);
 
@@ -379,20 +385,21 @@ LenaTdTbfqFfMacSchedulerTestCase1::DoRun (void)
       
       enum EpsBearer::Qci q = EpsBearer::GBR_CONV_VOICE;
       EpsBearer bearer (q, qos);
-      lteHelper->ActivateDedicatedEpsBearer (ueDevice, bearer, EpcTft::Default ());  
+      lteHelper->ActivateDedicatedEpsBearer (ueDevice, bearer, EpcTft::Default ());
     }
 
   // Install downlink and uplink applications
   uint16_t dlPort = 1234;
   uint16_t ulPort = 2000;
   PacketSinkHelper dlPacketSinkHelper ("ns3::UdpSocketFactory", InetSocketAddress (Ipv4Address::GetAny (), dlPort));
-  PacketSinkHelper ulPacketSinkHelper ("ns3::UdpSocketFactory", InetSocketAddress (Ipv4Address::GetAny (), ulPort));
   ApplicationContainer clientApps;
   ApplicationContainer serverApps;
-  serverApps.Add (ulPacketSinkHelper.Install (remoteHost));  // receive packets from UEs
+
   for (uint32_t u = 0; u < ueNodes.GetN (); ++u)
     {
       ++ulPort;
+      PacketSinkHelper ulPacketSinkHelper ("ns3::UdpSocketFactory", InetSocketAddress (Ipv4Address::GetAny (), ulPort));
+      serverApps.Add (ulPacketSinkHelper.Install (remoteHost));  // receive packets from UEs
       serverApps.Add (dlPacketSinkHelper.Install (ueNodes.Get (u))); // receive packets from remotehost
 
       UdpClientHelper dlClient (ueIpIface.GetAddress (u), dlPort); // uplink packets generator
@@ -410,7 +417,7 @@ LenaTdTbfqFfMacSchedulerTestCase1::DoRun (void)
     }
 
   serverApps.Start (Seconds (0.001));
-  clientApps.Start (Seconds (0.001));
+  clientApps.Start (Seconds (0.040));
 
   double statsStartTime = 0.040; // need to allow for RRC connection establishment + SRS
   double statsDuration = 1;
@@ -426,7 +433,7 @@ LenaTdTbfqFfMacSchedulerTestCase1::DoRun (void)
   Simulator::Run ();
 
   /**
-   * Check that the downlink assignation is done in a "token bank fair queue" manner
+   * Check that the downlink assignment is done in a "token bank fair queue" manner
    */
 
   NS_LOG_INFO ("DL - Test with " << m_nUser << " user(s) at distance " << m_dist);
@@ -448,7 +455,7 @@ LenaTdTbfqFfMacSchedulerTestCase1::DoRun (void)
     }
 
   /**
-  * Check that the uplink assignation is done in a "round robin" manner
+  * Check that the uplink assignment is done in a "round robin" manner
   */
 
   NS_LOG_INFO ("UL - Test with " << m_nUser << " user(s) at distance " << m_dist);
@@ -516,7 +523,10 @@ LenaTdTbfqFfMacSchedulerTestCase2::DoRun (void)
     }
 
   Config::SetDefault ("ns3::LteHelper::UseIdealRrc", BooleanValue (true));
-
+  Config::SetDefault ("ns3::MacStatsCalculator::DlOutputFilename", StringValue (CreateTempDirFilename ("DlMacStats.txt")));
+  Config::SetDefault ("ns3::MacStatsCalculator::UlOutputFilename", StringValue (CreateTempDirFilename ("UlMacStats.txt")));
+  Config::SetDefault ("ns3::RadioBearerStatsCalculator::DlRlcOutputFilename", StringValue (CreateTempDirFilename ("DlRlcStats.txt")));
+  Config::SetDefault ("ns3::RadioBearerStatsCalculator::UlRlcOutputFilename", StringValue (CreateTempDirFilename ("UlRlcStats.txt")));
 
   Ptr<LteHelper> lteHelper = CreateObject<LteHelper> ();
   Ptr<PointToPointEpcHelper>  epcHelper = CreateObject<PointToPointEpcHelper> ();
@@ -626,7 +636,7 @@ LenaTdTbfqFfMacSchedulerTestCase2::DoRun (void)
   
       enum EpsBearer::Qci q = EpsBearer::GBR_CONV_VOICE;
       EpsBearer bearer (q, qos);
-      lteHelper->ActivateDedicatedEpsBearer (ueDevice, bearer, EpcTft::Default ());  
+      lteHelper->ActivateDedicatedEpsBearer (ueDevice, bearer, EpcTft::Default ());
     }
 
 
@@ -634,13 +644,14 @@ LenaTdTbfqFfMacSchedulerTestCase2::DoRun (void)
   uint16_t dlPort = 1234;
   uint16_t ulPort = 2000;
   PacketSinkHelper dlPacketSinkHelper ("ns3::UdpSocketFactory", InetSocketAddress (Ipv4Address::GetAny (), dlPort));
-  PacketSinkHelper ulPacketSinkHelper ("ns3::UdpSocketFactory", InetSocketAddress (Ipv4Address::GetAny (), ulPort));
   ApplicationContainer clientApps;
   ApplicationContainer serverApps;
-  serverApps.Add (ulPacketSinkHelper.Install (remoteHost));  // receive packets from UEs
+
   for (uint32_t u = 0; u < ueNodes.GetN (); ++u)
     {
       ++ulPort;
+      PacketSinkHelper ulPacketSinkHelper ("ns3::UdpSocketFactory", InetSocketAddress (Ipv4Address::GetAny (), ulPort));
+      serverApps.Add (ulPacketSinkHelper.Install (remoteHost));  // receive packets from UEs
       serverApps.Add (dlPacketSinkHelper.Install (ueNodes.Get (u))); // receive packets from remotehost
 
       UdpClientHelper dlClient (ueIpIface.GetAddress (u), dlPort); // uplink packets generator
@@ -658,9 +669,9 @@ LenaTdTbfqFfMacSchedulerTestCase2::DoRun (void)
    }
 
   serverApps.Start (Seconds (0.001));
-  clientApps.Start (Seconds (0.001));
+  clientApps.Start (Seconds (0.040));
 
-  double statsStartTime = 0.001; // need to allow for RRC connection establishment + SRS
+  double statsStartTime = 0.040; // need to allow for RRC connection establishment + SRS
   double statsDuration = 1.0;
   double tolerance = 0.1;
   Simulator::Stop (Seconds (statsStartTime + statsDuration - 0.0001));
@@ -674,7 +685,7 @@ LenaTdTbfqFfMacSchedulerTestCase2::DoRun (void)
   Simulator::Run ();
 
   /**
-   * Check that the downlink assignation is done in a "token bank fair queue" manner
+   * Check that the downlink assignment is done in a "token bank fair queue" manner
    */
 
   NS_LOG_INFO ("DL - Test with " << m_nUser << " user(s)");

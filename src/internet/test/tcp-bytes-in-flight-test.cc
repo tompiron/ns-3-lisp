@@ -199,6 +199,9 @@ TcpBytesInFlightTest::Rx (const Ptr<const Packet> p, const TcpHeader &h, SocketW
                 {
                   // Partial ACK: Update the dupAck received count
                   m_dupAckRecv -= diff / GetSegSize (SENDER);
+                  // During fast recovery the TCP data sender respond to a partial acknowledgment
+                  // by inferring that the next in-sequence packet has been lost (RFC5681)
+                  m_guessedBytesInFlight -= GetSegSize (SENDER);
                 }
             }
 
@@ -224,6 +227,7 @@ TcpBytesInFlightTest::Rx (const Ptr<const Packet> p, const TcpHeader &h, SocketW
           if (m_dupAckRecv == 3)
             {
               NS_LOG_DEBUG ("Loss of a segment detected");
+              m_guessedBytesInFlight -= GetSegSize (SENDER);
             }
           NS_LOG_DEBUG ("Dupack received, Update m_guessedBytesInFlight to " <<
                         m_guessedBytesInFlight);
@@ -256,7 +260,7 @@ TcpBytesInFlightTest::Tx (const Ptr<const Packet> p, const TcpHeader &h, SocketW
           // count retransmission only one time
           m_guessedBytesInFlight += p->GetSize ();
         }
-       retr = h.GetSequenceNumber ();
+      retr = h.GetSequenceNumber ();
 
       NS_LOG_DEBUG ("TX size=" << p->GetSize () << " seq=" << h.GetSequenceNumber () <<
                     " m_guessedBytesInFlight=" << m_guessedBytesInFlight);

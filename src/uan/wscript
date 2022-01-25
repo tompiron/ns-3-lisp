@@ -8,7 +8,6 @@ def build(bld):
         'model/uan-mac.cc',
         'model/uan-transducer.cc',
         'model/uan-transducer-hd.cc',
-        'model/uan-address.cc',
         'model/uan-net-device.cc',
         'model/uan-tx-mode.cc',
         'model/uan-prop-model.cc',
@@ -34,6 +33,13 @@ def build(bld):
         'test/uan-test.cc',
         'test/uan-energy-model-test.cc',
         ]
+    
+    # Tests encapsulating example programs should be listed here
+    if (bld.env['ENABLE_EXAMPLES']):
+        module_test.source.extend([
+        #   'test/uan-examples-test-suite.cc',
+            ])
+    
     headers = bld(features='ns3header')
     headers.module = 'uan'
     headers.source = [
@@ -46,7 +52,6 @@ def build(bld):
         'model/uan-transducer.h',
         'model/uan-phy-gen.h',
         'model/uan-transducer-hd.h',
-        'model/uan-address.h',
         'model/uan-prop-model-ideal.h',
         'model/uan-mac-aloha.h',
         'model/uan-header-common.h',

@@ -21,13 +21,43 @@
 #ifndef WIFI_MAC_H
 #define WIFI_MAC_H
 
-#include "wifi-phy-standard.h"
+#include "ns3/net-device.h"
+#include "wifi-standards.h"
 #include "wifi-remote-station-manager.h"
-#include "dca-txop.h"
-#include "ssid.h"
 #include "qos-utils.h"
 
 namespace ns3 {
+
+class Ssid;
+class Txop;
+class HtConfiguration;
+class VhtConfiguration;
+class HeConfiguration;
+
+/**
+ * Enumeration for type of station
+ */
+enum TypeOfStation
+{
+  STA,
+  AP,
+  ADHOC_STA,
+  MESH,
+  OCB
+};
+
+/**
+ * \ingroup wifi
+  * \enum WifiMacDropReason
+  * \brief The reason why an MPDU was dropped
+  */
+enum WifiMacDropReason : uint8_t
+{
+  WIFI_MAC_DROP_FAILED_ENQUEUE = 0,
+  WIFI_MAC_DROP_EXPIRED_LIFETIME,
+  WIFI_MAC_DROP_REACHED_RETRY_LIMIT,
+  WIFI_MAC_DROP_QOS_OLD_PACKET
+};
 
 /**
  * \brief base class for all MAC-level wifi objects.
@@ -41,6 +71,8 @@ namespace ns3 {
 class WifiMac : public Object
 {
 public:
+  virtual void DoDispose ();
+
   /**
    * \brief Get the type ID.
    * \return the object TypeId
@@ -48,47 +80,40 @@ public:
   static TypeId GetTypeId (void);
 
   /**
-   * \param slotTime the slot duration
-   */
-  virtual void SetSlot (Time slotTime) = 0;
-  /**
-   * \param sifs the sifs duration
-   */
-  virtual void SetSifs (Time sifs) = 0;
-  /**
-   * \param eifsNoDifs the duration of an EIFS minus DIFS.
+   * Sets the device this PHY is associated with.
    *
-   * This value is used to calculate the EIFS depending
-   * on AIFSN.
+   * \param device the device this PHY is associated with
    */
-  virtual void SetEifsNoDifs (Time eifsNoDifs) = 0;
+  void SetDevice (const Ptr<NetDevice> device);
   /**
-   * \param pifs the pifs duration.
-   */
-  virtual void SetPifs (Time pifs) = 0;
-  /**
-   * \param rifs the rifs duration.
-   */
-  virtual void SetRifs (Time rifs) = 0;
-  /**
-   * \param ctsTimeout the duration of a CTS timeout.
-   */
-  virtual void SetCtsTimeout (Time ctsTimeout) = 0;
-  /**
-   * \param ackTimeout the duration of an ACK timeout.
-   */
-  virtual void SetAckTimeout (Time ackTimeout) = 0;
-  /**
-   * \param delay the max propagation delay.
+   * Return the device this PHY is associated with
    *
-   * Unused for now.
+   * \return the device this PHY is associated with
    */
-  void SetMaxPropagationDelay (Time delay);
+  Ptr<NetDevice> GetDevice (void) const;
+
+   /**
+   * This method is invoked by a subclass to specify what type of
+   * station it is implementing. This is something that the channel
+   * access functions need to know.
+   *
+   * \param type the type of station.
+   */
+  virtual void SetTypeOfStation (TypeOfStation type) = 0;
   /**
-   * \param ssid the current ssid of this MAC layer.
+   * Return the type of station.
+   *
+   * \return the type of station.
+   */
+  virtual TypeOfStation GetTypeOfStation (void) const = 0;
+
+ /**
+   * \param ssid the current SSID of this MAC layer.
    */
   virtual void SetSsid (Ssid ssid) = 0;
   /**
+   * Enable or disable short slot time feature.
+   *
    * \param enable true if short slot time is to be supported,
    *               false otherwise
    */
@@ -103,51 +128,11 @@ public:
   virtual void SetPromisc (void) = 0;
 
   /**
-   * \return the current RIFS duration.
-   */
-  virtual Time GetRifs (void) const = 0;
-  /**
-   * \return the current PIFS duration.
-   */
-  virtual Time GetPifs (void) const = 0;
-  /**
-   * \return the current SIFS duration.
-   */
-  virtual Time GetSifs (void) const = 0;
-  /**
-   * \return the current slot duration.
-   */
-  virtual Time GetSlot (void) const = 0;
-  /**
-   * \return the current EIFS minus DIFS duration
-   */
-  virtual Time GetEifsNoDifs (void) const = 0;
-  /**
-   * \return the current CTS timeout duration.
-   */
-  virtual Time GetCtsTimeout (void) const = 0;
-  /**
-   * \return the current ACK timeout duration.
-   */
-  virtual Time GetAckTimeout (void) const = 0;
-  /**
-   * \return the maximum lifetime of an MSDU.
-   *
-   * Unused for now.
-   */
-  Time GetMsduLifetime (void) const;
-  /**
-   * \return the maximum propagation delay.
-   *
-   * Unused for now.
-   */
-  Time GetMaxPropagationDelay (void) const;
-  /**
    * \return the MAC address associated to this MAC layer.
    */
   virtual Mac48Address GetAddress (void) const = 0;
   /**
-   * \return the ssid which this MAC layer is going to try to stay in.
+   * \return the SSID which this MAC layer is going to try to stay in.
    */
   virtual Ssid GetSsid (void) const = 0;
   /**
@@ -155,39 +140,35 @@ public:
    */
   virtual void SetAddress (Mac48Address address) = 0;
   /**
-   * \return the bssid of the network this device belongs to.
+   * \return the BSSID of the network this device belongs to.
    */
   virtual Mac48Address GetBssid (void) const = 0;
   /**
    * \return whether the device supports short slot time capability.
    */
   virtual bool GetShortSlotTimeSupported (void) const = 0;
-  /**
-   * \return whether the device supports RIFS capability.
-   */
-  virtual bool GetRifsSupported (void) const = 0;
 
   /**
    * \param packet the packet to send.
    * \param to the address to which the packet should be sent.
    * \param from the address from which the packet should be sent.
    *
-   * The packet should be enqueued in a tx queue, and should be
+   * The packet should be enqueued in a TX queue, and should be
    * dequeued as soon as the DCF function determines that
    * access it granted to this MAC. The extra parameter "from" allows
    * this device to operate in a bridged mode, forwarding received
    * frames without altering the source address.
    */
-  virtual void Enqueue (Ptr<const Packet> packet, Mac48Address to, Mac48Address from) = 0;
+  virtual void Enqueue (Ptr<Packet> packet, Mac48Address to, Mac48Address from) = 0;
   /**
    * \param packet the packet to send.
    * \param to the address to which the packet should be sent.
    *
-   * The packet should be enqueued in a tx queue, and should be
+   * The packet should be enqueued in a TX queue, and should be
    * dequeued as soon as the DCF function determines that
    * access it granted to this MAC.
    */
-  virtual void Enqueue (Ptr<const Packet> packet, Mac48Address to) = 0;
+  virtual void Enqueue (Ptr<Packet> packet, Mac48Address to) = 0;
   /**
    * \return if this MAC supports sending from arbitrary address.
    *
@@ -201,11 +182,11 @@ public:
    */
   virtual void SetWifiPhy (Ptr<WifiPhy> phy) = 0;
   /**
-   * \return currently attached WifiPhy device
+   * \return the physical layer attached to this MAC
    */
   virtual Ptr<WifiPhy> GetWifiPhy (void) const = 0;
   /**
-   * remove currently attached WifiPhy device from this MAC.
+   * Remove currently attached WifiPhy device from this MAC.
    */
   virtual void ResetWifiPhy (void) = 0;
   /**
@@ -218,9 +199,20 @@ public:
   virtual Ptr<WifiRemoteStationManager> GetWifiRemoteStationManager (void) const = 0;
 
   /**
-   * \param upCallback the callback to invoke when a packet must be forwarded up the stack.
+   * This type defines the callback of a higher layer that a
+   * WifiMac(-derived) object invokes to pass a packet up the stack.
+   *
+   * \param packet the packet that has been received.
+   * \param from the MAC address of the device that sent the packet.
+   * \param to the MAC address of the device that the packet is destined for.
    */
-  virtual void SetForwardUpCallback (Callback<void,Ptr<Packet>, Mac48Address, Mac48Address> upCallback) = 0;
+  typedef Callback<void, Ptr<const Packet>, Mac48Address, Mac48Address> ForwardUpCallback;
+
+  /**
+   * \param upCallback the callback to invoke when a packet must be
+   *        forwarded up the stack.
+   */
+  virtual void SetForwardUpCallback (ForwardUpCallback upCallback) = 0;
   /**
    * \param linkUp the callback to invoke when the link becomes up.
    */
@@ -229,30 +221,9 @@ public:
    * \param linkDown the callback to invoke when the link becomes down.
    */
   virtual void SetLinkDownCallback (Callback<void> linkDown) = 0;
-  /* Next functions are not pure virtual so non Qos WifiMacs are not
+  /* Next functions are not pure virtual so non QoS WifiMacs are not
    * forced to implement them.
    */
-
-  /**
-   * \param blockAckTimeout the duration for basic block ACK timeout.
-   *
-   * Sets the timeout for basic block ACK.
-   */
-  virtual void SetBasicBlockAckTimeout (Time blockAckTimeout);
-  /**
-   * \return the current basic block ACK timeout duration.
-   */
-  virtual Time GetBasicBlockAckTimeout (void) const;
-  /**
-   * \param blockAckTimeout
-   *
-   * Sets the timeout for compressed block ACK.
-   */
-  virtual void SetCompressedBlockAckTimeout (Time blockAckTimeout);
-  /**
-   * \return the current compressed block ACK timeout duration.
-   */
-  virtual Time GetCompressedBlockAckTimeout (void) const;
 
   /**
    * \param packet the packet being enqueued
@@ -265,9 +236,9 @@ public:
   /**
    * \param packet the packet being dropped
    *
-   * Public method used to fire a MacTxDrop trace. Implemented for encapsulation purposes.
-   * This trace indicates that the packet was dropped before it was transmitted
-   * (e.g. when a STA is not associated with an AP).
+   * Public method used to fire a MacTxDrop trace.
+   * This trace indicates that the packet was dropped before it was queued for
+   * transmission (e.g. when a STA is not associated with an AP).
    */
   void NotifyTxDrop (Ptr<const Packet> packet);
   /**
@@ -292,177 +263,41 @@ public:
   /**
    * \param standard the wifi standard to be configured
    *
-   * This method sets standards-compliant defaults for WifiMac
-   * parameters such as sifs time, slot time, timeout values, etc.,
-   * based on the standard selected.
-   *
-   * \sa WifiMac::Configure80211a
-   * \sa WifiMac::Configure80211b
-   * \sa WifiMac::Configure80211g
-   * \sa WifiMac::Configure80211_10Mhz
-   * \sa WifiMac::Configure80211_5Mhz
-   * \sa WifiMac::Configure80211n_2_4Ghz
-   * \sa WifiMac::Configure80211n_5Ghz
-   * \sa WifiMac::Configure80211ac
-   * \sa WifiMac::Configure80211ax_2_4Ghz
-   * \sa WifiMac::Configure80211ax_5Ghz
+   * This method completes the configuration process for a requested PHY standard.
+   * Subclasses should implement this method to configure their DCF queues
+   * according to the requested standard.
    */
-  void ConfigureStandard (WifiPhyStandard standard);
+  virtual void ConfigureStandard (WifiStandard standard) = 0;
+
+  /**
+   * \return pointer to HtConfiguration if it exists
+   */
+  Ptr<HtConfiguration> GetHtConfiguration (void) const;
+  /**
+   * \return pointer to VhtConfiguration if it exists
+   */
+  Ptr<VhtConfiguration> GetVhtConfiguration (void) const;
+  /**
+   * \return pointer to HeConfiguration if it exists
+   */
+  Ptr<HeConfiguration> GetHeConfiguration (void) const;
 
 
 protected:
   /**
    * \param dcf the DCF to be configured
-   * \param cwmin the minimum congestion window for the DCF
-   * \param cwmax the maximum congestion window for the DCF
+   * \param cwmin the minimum contention window for the DCF
+   * \param cwmax the maximum contention window for the DCF
    * \param isDsss flag to indicate whether PHY is DSSS or HR/DSSS
    * \param ac the access category for the DCF
    *
    * Configure the DCF with appropriate values depending on the given access category.
    */
-  void ConfigureDcf (Ptr<DcaTxop> dcf, uint32_t cwmin, uint32_t cwmax, bool isDsss, AcIndex ac);
+  void ConfigureDcf (Ptr<Txop> dcf, uint32_t cwmin, uint32_t cwmax, bool isDsss, AcIndex ac);
 
 
 private:
-  /**
-   * \return the default maximum propagation delay
-   *
-   * By default, we get the maximum propagation delay from 1000 m and speed of light
-   * (3e8 m/s).
-   */
-  static Time GetDefaultMaxPropagationDelay (void);
-  /**
-   * \return the default slot duration
-   *
-   * Return a default slot value for 802.11a (9 microseconds).
-   */
-  static Time GetDefaultSlot (void);
-  /**
-   * \return the default short interframe space (SIFS)
-   *
-   * Return a default SIFS value for 802.11a (16 microseconds).
-   */
-  static Time GetDefaultSifs (void);
-  /**
-   * \return the default reduced interframe space (RIFS)
-   *
-   * Return a default RIFS value for 802.11n (2 microseconds).
-   */
-  static Time GetDefaultRifs (void);
-  /**
-   * \return the default extended interframe space (EIFS) without
-   *         DCF interframe space (DIFS)
-   *
-   * Return default SIFS + default CTS-ACK delay
-   */
-  static Time GetDefaultEifsNoDifs (void);
-  /**
-   * \return the default CTS-ACK delay
-   *
-   * Return a default value for 802.11a at 6Mbps (44 microseconds)
-   */
-  static Time GetDefaultCtsAckDelay (void);
-  /**
-   * \return the default CTS and ACK timeout
-   *
-   * Return the default CTS and ACK timeout.
-   * Cts_Timeout and Ack_Timeout are specified in the Annex C
-   * (Formal description of MAC operation, see details on the
-   * Trsp timer setting at page 346)
-   */
-  static Time GetDefaultCtsAckTimeout (void);
-  /**
-   * Return the default basic block ACK delay.
-   * Currently it returns 250 microseconds.
-   *
-   * \return the default basic block ACK delay
-   */
-  static Time GetDefaultBasicBlockAckDelay (void);
-  /**
-   * Return the default basic block ACK timeout.
-   *
-   * \return the default basic block ACK timeout
-   */
-  static Time GetDefaultBasicBlockAckTimeout (void);
-  /**
-   * Return the default compressed block ACK delay.
-   * Currently it returns 76 microseconds.
-   *
-   * \return the default compressed block ACK delay
-   */
-  static Time GetDefaultCompressedBlockAckDelay (void);
-  /**
-   * Return the default compressed block ACK timeout.
-   *
-   * \return the default compressed block ACK timeout
-   */
-  static Time GetDefaultCompressedBlockAckTimeout (void);
-
-  /**
-   * \param standard the phy standard to be used
-   *
-   * This method is called by ns3::WifiMac::ConfigureStandard to complete
-   * the configuration process for a requested phy standard. Subclasses should
-   * implement this method to configure their dcf queues according to the
-   * requested standard.
-   */
-  virtual void FinishConfigureStandard (WifiPhyStandard standard) = 0;
-
-  Time m_maxPropagationDelay; ///< maximum propagation delay
-
-  /**
-   * This method sets 802.11a standards-compliant defaults for following attributes:
-   * Sifs, Slot, EifsNoDifs, Pifs, CtsTimeout, and AckTimeout.
-   */
-  void Configure80211a (void);
-  /**
-   * This method sets 802.11b standards-compliant defaults for following attributes:
-   * Sifs, Slot, EifsNoDifs, Pifs, CtsTimeout, and AckTimeout.
-   */
-  void Configure80211b (void);
-  /**
-   * This method sets 802.11g standards-compliant defaults for following attributes:
-   * Sifs, Slot, EifsNoDifs, Pifs, CtsTimeout, and AckTimeout.
-   * There is no support for short slot time.
-   */
-  void Configure80211g (void);
-  /**
-   * This method sets 802.11 with 10Mhz channel spacing standards-compliant defaults
-   * for following attributes: Sifs, Slot, EifsNoDifs, Pifs, CtsTimeout, and AckTimeout.
-   */
-  void Configure80211_10Mhz (void);
-  /**
-   * This method sets 802.11 with 5Mhz channel spacing standards-compliant defaults
-   * for following attributes: Sifs, Slot, EifsNoDifs, Pifs, CtsTimeout, and AckTimeout.
-   */
-  void Configure80211_5Mhz ();
-  /**
-   * This method sets 802.11n 2.4 GHz standards-compliant defaults for following attributes:
-   * Sifs, Rifs, Slot, EifsNoDifs, Pifs, CtsTimeout, and AckTimeout.
-   * There is no support for short slot time.
-   */
-  void Configure80211n_2_4Ghz (void);
-  /**
-   * This method sets 802.11n 5 GHz standards-compliant defaults for following attributes:
-   * Sifs, Rifs, Slot, EifsNoDifs, Pifs, CtsTimeout, and AckTimeout.
-   */
-  void Configure80211n_5Ghz (void);
-  /**
-  * This method sets 802.11ac standards-compliant defaults for following attributes:
-  * Sifs, Slot, EifsNoDifs, Pifs, CtsTimeout, and AckTimeout.
-  */
-  void Configure80211ac (void);
-  /**
-   * This method sets 802.11ax 2.4 GHz standards-compliant defaults for following attributes:
-   * Sifs, Slot, EifsNoDifs, Pifs, CtsTimeout, and AckTimeout.
-   * There is no support for short slot time.
-   */
-  void Configure80211ax_2_4Ghz (void);
-  /**
-   * This method sets 802.11ax 5 GHz standards-compliant defaults for following attributes:
-   * Sifs, Slot, EifsNoDifs, Pifs, CtsTimeout, and AckTimeout.
-   */
-  void Configure80211ax_5Ghz (void);
+  Ptr<NetDevice> m_device;    ///< Pointer to the device
 
   /**
    * The trace source fired when packets come into the "top" of the device
@@ -473,7 +308,7 @@ private:
   TracedCallback<Ptr<const Packet> > m_macTxTrace;
   /**
    * The trace source fired when packets coming into the "top" of the device
-   * are dropped at the MAC layer during transmission.
+   * are dropped at the MAC layer before being queued for transmission.
    *
    * \see class CallBackTraceSource
    */

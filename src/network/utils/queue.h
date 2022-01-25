@@ -29,6 +29,8 @@
 #include "ns3/traced-value.h"
 #include "ns3/unused.h"
 #include "ns3/log.h"
+#include "ns3/queue-size.h"
+#include "ns3/queue-item.h"
 #include <string>
 #include <sstream>
 #include <list>
@@ -96,6 +98,12 @@ public:
   uint32_t GetNBytes (void) const;
 
   /**
+   * \return The current size of the Queue in terms of packets, if the maximum
+   *         size is specified in packets, or bytes, otherwise
+   */
+  QueueSize GetCurrentSize (void) const;
+
+  /**
    * \return The total number of bytes received by this Queue since the
    * simulation began, or since ResetStatistics was called, according to
    * whichever happened more recently
@@ -158,52 +166,18 @@ public:
   void ResetStatistics (void);
 
   /**
-   * \brief Enumeration of the modes supported in the class.
+   * \brief Set the maximum size of this queue
    *
-   */
-  enum QueueMode
-  {
-    QUEUE_MODE_PACKETS,     /**< Use number of packets for maximum queue size */
-    QUEUE_MODE_BYTES,       /**< Use number of bytes for maximum queue size */
-  };
-
-  /**
-   * Set the operating mode of this device.
+   * Trying to set a null size has no effect.
    *
-   * \param mode The operating mode of this device.
+   * \param size the maximum size
    */
-  void SetMode (QueueBase::QueueMode mode);
+  void SetMaxSize (QueueSize size);
 
   /**
-   * Get the operating mode of this device.
-   *
-   * \returns The operating mode of this device.
+   * \return the maximum size of this queue
    */
-  QueueBase::QueueMode GetMode (void) const;
-
-  /**
-   * \brief Set the maximum amount of packets that can be stored in this queue
-   *
-   * \param maxPackets amount of packets
-   */
-  void SetMaxPackets (uint32_t maxPackets);
-
-  /**
-   * \return the maximum amount of packets that can be stored in this queue
-   */
-  uint32_t GetMaxPackets (void) const;
-
-  /**
-   * \brief Set the maximum amount of bytes that can be stored in this queue
-   *
-   * \param maxBytes amount of bytes
-   */
-  void SetMaxBytes (uint32_t maxBytes);
-
-  /**
-   * \return the maximum amount of bytes that can be stored in this queue
-   */
-  uint32_t GetMaxBytes (void) const;
+  QueueSize GetMaxSize (void) const;
 
 #if 0
   // average calculation requires keeping around
@@ -241,9 +215,7 @@ private:
   uint32_t m_nTotalDroppedPacketsBeforeEnqueue; //!< Total dropped packets before enqueue
   uint32_t m_nTotalDroppedPacketsAfterDequeue;  //!< Total dropped packets after dequeue
 
-  uint32_t m_maxPackets;              //!< max packets in the queue
-  uint32_t m_maxBytes;                //!< max bytes in the queue
-  QueueMode m_mode;                   //!< queue mode (packets or bytes)
+  QueueSize m_maxSize;                //!< max queue size
 
   /// Friend class
   template <typename Item>
@@ -261,7 +233,10 @@ private:
  * Queue is a template class. The type of the objects stored within the queue
  * is specified by the type parameter, which can be any class providing a
  * GetSize () method (e.g., Packet, QueueDiscItem, etc.). Subclasses need to
- * implement the DoEnqueue, DoDequeue, DoRemove and DoPeek methods.
+ * implement the Enqueue, Dequeue, Remove and Peek methods, and are
+ * encouraged to leverage the DoEnqueue, DoDequeue, DoRemove, and DoPeek
+ * methods in doing so, to ensure that appropriate trace sources are called
+ * and statistics are maintained.
  *
  * Users of the Queue template class usually hold a queue through a smart pointer,
  * hence forward declaration is recommended to avoid pulling the implementation
@@ -296,14 +271,14 @@ public:
 
   /**
    * Remove an item from the Queue (each subclass defines the position),
-   * counting it as dequeued
+   * counting it and tracing it as dequeued
    * \return 0 if the operation was not successful; the item otherwise.
    */
   virtual Ptr<Item> Dequeue (void) = 0;
 
   /**
    * Remove an item from the Queue (each subclass defines the position),
-   * counting it as dropped
+   * counting it and tracing it as both dequeued and dropped
    * \return 0 if the operation was not successful; the item otherwise.
    */
   virtual Ptr<Item>  Remove (void) = 0;
@@ -316,54 +291,102 @@ public:
   virtual Ptr<const Item> Peek (void) const = 0;
 
   /**
-   * Flush the queue.
+   * Flush the queue by calling Remove() on each item enqueued.  Note that
+   * this operation will cause dequeue and drop counts to be incremented and
+   * traces to be triggered for each Remove() action.
    */
   void Flush (void);
+
+  /// Define ItemType as the type of the stored elements
+  typedef Item ItemType;
 
 protected:
 
   /// Const iterator.
   typedef typename std::list<Ptr<Item> >::const_iterator ConstIterator;
+  /// Iterator.
+  typedef typename std::list<Ptr<Item> >::iterator Iterator;
 
   /**
    * \brief Get a const iterator which refers to the first item in the queue.
    *
-   * Subclasses can browse the items in the queue by using an iterator
+   * Subclasses can browse the items in the queue by using a const iterator
    *
    * \code
-   *   for (auto i = Head (); i != Tail (); ++i)
+   *   for (auto i = begin (); i != end (); ++i)
    *     {
-   *       (*i)->method ();  // some method of the Item class
+   *       (*i)->method ();  // some const method of the Item class
    *     }
    * \endcode
    *
    * \returns a const iterator which refers to the first item in the queue.
    */
-  ConstIterator Head (void) const;
+  ConstIterator begin (void) const;
 
   /**
-   * \brief Get a const iterator which indicates past-the-last item in the queue.
+   * \brief Get an iterator which refers to the first item in the queue.
    *
    * Subclasses can browse the items in the queue by using an iterator
    *
    * \code
-   *   for (auto i = Head (); i != Tail (); ++i)
+   *   for (auto i = begin (); i != end (); ++i)
    *     {
    *       (*i)->method ();  // some method of the Item class
    *     }
    * \endcode
    *
+   * \returns an iterator which refers to the first item in the queue.
+   */
+  Iterator begin (void);
+
+  /**
+   * \brief Get a const iterator which indicates past-the-last item in the queue.
+   *
+   * Subclasses can browse the items in the queue by using a const iterator
+   *
+   * \code
+   *   for (auto i = begin (); i != end (); ++i)
+   *     {
+   *       (*i)->method ();  // some const method of the Item class
+   *     }
+   * \endcode
+   *
    * \returns a const iterator which indicates past-the-last item in the queue.
    */
-  ConstIterator Tail (void) const;
+  ConstIterator end (void) const;
+
+  /**
+   * \brief Get an iterator which indicates past-the-last item in the queue.
+   *
+   * Subclasses can browse the items in the queue by using an iterator
+   *
+   * \code
+   *   for (auto i = begin (); i != end (); ++i)
+   *     {
+   *       (*i)->method ();  // some method of the Item class
+   *     }
+   * \endcode
+   *
+   * \returns an iterator which indicates past-the-last item in the queue.
+   */
+  Iterator end (void);
 
   /**
    * Push an item in the queue
-   * \param pos the position where the item is inserted
+   * \param pos the position before which the item will be inserted
    * \param item the item to enqueue
    * \return true if success, false if the packet has been dropped.
    */
   bool DoEnqueue (ConstIterator pos, Ptr<Item> item);
+
+  /**
+   * Push an item in the queue
+   * \param pos the position before which the item will be inserted
+   * \param item the item to enqueue
+   * \param[out] ret an iterator pointing to the inserted value
+   * \return true if success, false if the packet has been dropped.
+   */
+  bool DoEnqueue (ConstIterator pos, Ptr<Item> item, Iterator& ret);
 
   /**
    * Pull the item to dequeue from the queue
@@ -405,6 +428,8 @@ protected:
    * dropped for other reasons after being dequeued.
    */
   void DropAfterDequeue (Ptr<Item> item);
+
+  void DoDispose (void) override;
 
 private:
   std::list<Ptr<Item> > m_packets;          //!< the items in the queue
@@ -469,23 +494,24 @@ template <typename Item>
 bool
 Queue<Item>::DoEnqueue (ConstIterator pos, Ptr<Item> item)
 {
+  Iterator ret;
+  return DoEnqueue (pos, item, ret);
+}
+
+template <typename Item>
+bool
+Queue<Item>::DoEnqueue (ConstIterator pos, Ptr<Item> item, Iterator& ret)
+{
   NS_LOG_FUNCTION (this << item);
 
-  if (m_mode == QUEUE_MODE_PACKETS && (m_nPackets.Get () >= m_maxPackets))
+  if (GetCurrentSize () + item > GetMaxSize ())
     {
-      NS_LOG_LOGIC ("Queue full (at max packets) -- dropping pkt");
+      NS_LOG_LOGIC ("Queue full -- dropping pkt");
       DropBeforeEnqueue (item);
       return false;
     }
 
-  if (m_mode == QUEUE_MODE_BYTES && (m_nBytes.Get () + item->GetSize () > m_maxBytes))
-    {
-      NS_LOG_LOGIC ("Queue full (packet would exceed max bytes) -- dropping pkt");
-      DropBeforeEnqueue (item);
-      return false;
-    }
-
-  m_packets.insert (pos, item);
+  ret = m_packets.insert (pos, item);
 
   uint32_t size = item->GetSize ();
   m_nBytes += size;
@@ -573,6 +599,15 @@ Queue<Item>::Flush (void)
 }
 
 template <typename Item>
+void
+Queue<Item>::DoDispose (void)
+{
+  NS_LOG_FUNCTION (this);
+  m_packets.clear ();
+  Object::DoDispose ();
+}
+
+template <typename Item>
 Ptr<const Item>
 Queue<Item>::DoPeek (ConstIterator pos) const
 {
@@ -588,15 +623,27 @@ Queue<Item>::DoPeek (ConstIterator pos) const
 }
 
 template <typename Item>
-typename Queue<Item>::ConstIterator Queue<Item>::Head (void) const
+typename Queue<Item>::ConstIterator Queue<Item>::begin (void) const
 {
   return m_packets.cbegin ();
 }
 
 template <typename Item>
-typename Queue<Item>::ConstIterator Queue<Item>::Tail (void) const
+typename Queue<Item>::Iterator Queue<Item>::begin (void)
+{
+  return m_packets.begin ();
+}
+
+template <typename Item>
+typename Queue<Item>::ConstIterator Queue<Item>::end (void) const
 {
   return m_packets.cend ();
+}
+
+template <typename Item>
+typename Queue<Item>::Iterator Queue<Item>::end (void)
+{
+  return m_packets.end ();
 }
 
 template <typename Item>
@@ -630,6 +677,15 @@ Queue<Item>::DropAfterDequeue (Ptr<Item> item)
   m_traceDrop (item);
   m_traceDropAfterDequeue (item);
 }
+
+// The following explicit template instantiation declarations prevent all the
+// translation units including this header file to implicitly instantiate the
+// Queue<Packet> class and the Queue<QueueDiscItem> class. The unique instances
+// of these classes are explicitly created through the macros
+// NS_OBJECT_TEMPLATE_CLASS_DEFINE (Queue,Packet) and
+// NS_OBJECT_TEMPLATE_CLASS_DEFINE (Queue,QueueDiscItem), which are included in queue.cc
+extern template class Queue<Packet>;
+extern template class Queue<QueueDiscItem>;
 
 } // namespace ns3
 

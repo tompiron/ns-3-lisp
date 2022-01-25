@@ -321,17 +321,19 @@ void Asn1Header::SerializeChoice (int numOptions, int selectedOption, bool isExt
 
 void Asn1Header::SerializeInteger (int n, int nmin, int nmax) const
 {
-  // Misusage check: Ensure nmax>nmin ...
-  if (nmin > nmax)
-    {
-      int aux = nmin;
-      nmin = nmax;
-      nmax = aux;
-    }
+  // The following is equivalent to:
+  //  NS_ASSERT_MSG (nmin <= n && n <= nmax,
+  //               "Integer " << n << " is outside range [" << nmin << ", " << nmax << "]");
+  // This is a workaround to gcc-7 aggressive optimization, see #346, and can be dropped
+  // once gcc-7 will not be anymore supported.
+  long int nComp = nmin;
+  nComp -= n;
+  NS_ASSERT_MSG (nComp <= 0 && n <= nmax,
+                 "Integer " << n << " is outside range [" << nmin << ", " << nmax << "]");
 
   // Clause 11.5.3 ITU-T X.691
   int range = nmax - nmin + 1;
-  // Substract nmin to n
+  // Subtract nmin to n
   n -= nmin;
 
   // Clause 11.5.4 ITU-T X.691

@@ -24,7 +24,7 @@
 
 #include "ns3/header.h"
 #include "ns3/nstime.h"
-#include "ns3/uan-address.h"
+#include "ns3/mac8-address.h"
 
 #include <set>
 
@@ -86,6 +86,13 @@ public:
    * \note Prop. delay is transmitted with 16 bits and ms accuracy
    */
   Time GetPropDelay (void) const;
+  /**
+   * Specialized Print with Time::Unit declared.
+   *
+   * \param os ostream.
+   * \param unit Time unit.
+   */
+  void Print (std::ostream &os, Time::Unit unit) const;
 
   // Inherrited methods
   virtual uint32_t GetSerializedSize (void) const;
@@ -197,6 +204,13 @@ public:
    * \return The retry number.
    */
   uint8_t GetRetryNo (void) const;
+   /**
+   * Specialized Print with Time::Unit declared.
+   *
+   * \param os ostream.
+   * \param unit Time unit.
+   */
+  void Print (std::ostream &os, Time::Unit unit) const;
 
   // Inherrited methods
   virtual uint32_t GetSerializedSize (void) const;
@@ -294,6 +308,13 @@ public:
    * \return The timestamp.
    */
   Time GetTxTimeStamp (void) const;
+  /**
+   * Specialized Print with Time::Unit declared.
+   *
+   * \param os ostream.
+   * \param unit Time unit.
+   */
+  void Print (std::ostream &os, Time::Unit unit) const;
 
   // Inherrited methods
   virtual uint32_t GetSerializedSize (void) const;
@@ -331,9 +352,9 @@ public:
    * \param rtsTs RX time of RTS packet at gateway.
    * \param delay Delay until transmission.
    * \param addr Destination of CTS packet.
-   * \note Times are serialized, with ms precission, into 32 bit fields.
+   * \note Times are serialized, with ms precision, into 32 bit fields.
    */
-  UanHeaderRcCts (uint8_t frameNo, uint8_t retryNo, Time rtsTs, Time delay, UanAddress addr);
+  UanHeaderRcCts (uint8_t frameNo, uint8_t retryNo, Time rtsTs, Time delay, Mac8Address addr);
   /** Destructor */
   virtual ~UanHeaderRcCts ();
 
@@ -372,7 +393,7 @@ public:
    *
    * \param addr The destination address.
    */
-  void SetAddress (UanAddress addr);
+  void SetAddress (Mac8Address addr);
 
   /**
    * Get the frame number of the RTS being cleared.
@@ -404,7 +425,14 @@ public:
    *
    * \return The destination address.
    */
-  UanAddress GetAddress (void) const;
+  Mac8Address GetAddress (void) const;
+  /**
+   * Specialized Print with Time::Unit declared.
+   *
+   * \param os ostream.
+   * \param unit Time unit.
+   */
+  void Print (std::ostream &os, Time::Unit unit) const;
 
   // Inherrited methods
   virtual uint32_t GetSerializedSize (void) const;
@@ -418,7 +446,7 @@ private:
   Time m_timeStampRts;   //!< RX time of RTS packet at gateway.
   uint8_t m_retryNo;     //!< Retry number of received RTS packet.
   Time m_delay;          //!< Delay until transmission.
-  UanAddress m_address;  //!< Destination of CTS packet.
+  Mac8Address m_address;  //!< Destination of CTS packet.
 
 };  // class UanHeaderRcCts
 
