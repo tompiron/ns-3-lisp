@@ -22,6 +22,8 @@
 #include "ns3/uinteger.h"
 #include "ns3/names.h"
 #include "ns3/lisp-protocol.h"
+#include "ns3/lisp-over-ip.h"
+
 namespace ns3 {
 
 MapServerDdtHelper::MapServerDdtHelper ()
@@ -43,6 +45,12 @@ MapServerDdtHelper::SetAttribute (std::string name, const AttributeValue &value)
 ApplicationContainer
 MapServerDdtHelper::Install (Ptr<Node> node) const
 {
+  /**
+   * We should make sure that map server always has a lispoveripv4 or lispoveripv6 object
+   * Because MapServerDdt should be a lisp-speaking equipment. For example, in LISP-MN
+   * map server need to send encapsulated control message.
+   */
+  NS_ASSERT (node->GetObject<LispOverIp>() != 0);
   return ApplicationContainer (InstallPriv (node));
 }
 
@@ -50,6 +58,7 @@ ApplicationContainer
 MapServerDdtHelper::Install (std::string nodeName) const
 {
   Ptr<Node> node = Names::Find<Node> (nodeName);
+  NS_ASSERT (node->GetObject<LispOverIp>() != 0);
   return ApplicationContainer (InstallPriv (node));
 }
 
@@ -67,9 +76,12 @@ MapServerDdtHelper::Install (NodeContainer c) const
 
 Ptr<Application> MapServerDdtHelper::InstallPriv (Ptr<Node> node) const
 {
+  Ptr<LispOverIp> lisp = node->GetObject<LispOverIp>();
+  NS_ASSERT_MSG (lisp != 0, "a MR must have one LispOverIp object! It is a lisp-speaking device!");
   Ptr<MapServerDdt> app = m_factory.Create<MapServerDdt> ();
-
   node->AddApplication (app);
+  // We tell MapResolverDdt the pointer to MapTables saved in lispOverIp
+  app->SetMapTables (lisp->GetMapTablesV4 (), lisp->GetMapTablesV6 ());
   return app;
 }
 

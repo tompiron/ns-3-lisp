@@ -29,6 +29,10 @@ NS_LOG_COMPONENT_DEFINE ("MappingSocketAddress");
 MappingSocketAddress::MappingSocketAddress ()
 {
   NS_LOG_FUNCTION (this);
+  NS_LOG_DEBUG (
+    "When default constructor (where m_address and m_lispSockIndex are not explicitly initialized) is called,"
+      << "the m_lispSockIndex is: " << unsigned(m_lispSockIndex) << " the m_address is: " << m_address
+    );
 }
 
 MappingSocketAddress::MappingSocketAddress (const Address address, uint8_t sockIndex)
@@ -49,8 +53,10 @@ MappingSocketAddress::~MappingSocketAddress ()
    */
 Address MappingSocketAddress::ConvertTo (void) const
 {
+  NS_LOG_FUNCTION (this);
   uint8_t buffer[Address::MAX_SIZE];
   buffer[0] = m_lispSockIndex & 0xff;
+  NS_LOG_DEBUG ("m_lispSockIndex is: " << unsigned(m_lispSockIndex) << " m_address is: " << m_address);
   uint32_t copied = m_address.CopyAllTo (buffer + 1, Address::MAX_SIZE - 1);
   return Address (GetType (), buffer, 1 + copied);
 }

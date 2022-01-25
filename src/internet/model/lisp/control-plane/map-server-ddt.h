@@ -23,8 +23,11 @@
 #include "map-server.h"
 #include "ns3/map-tables.h"
 #include "ns3/lisp-control-msg.h"
-#include "ns3/lisp-protocol.h"
+#include "ns3/lisp-over-ip.h"
 #include "ns3/map-request-msg.h"
+#include "ns3/map-register-msg.h"
+#include "ns3/map-notify-msg.h"
+#include "ns3/event-id.h"
 
 namespace ns3 {
 
@@ -37,12 +40,21 @@ public:
 
   static TypeId GetTypeId (void);
 
+  Ptr<MapTables> GetMapTablesV4 ();
+
+  Ptr<MapTables> GetMapTablesV6 ();
+
+  void SetMapTables (Ptr<MapTables> mapTablesV4, Ptr<MapTables> mapTablesV6);
+
+
 private:
   virtual void StartApplication (void);
 
   virtual void StopApplication (void);
 
-  virtual void SendMapReply (void);
+  virtual Ptr<MapNotifyMsg> GenerateMapNotifyMsg (Ptr<MapRegisterMsg> msg);
+
+  Ipv4Address SelectDstRlocAddress (Ptr<LispControlMsg> msg);
 
   virtual void Send (Ptr<Packet> p);
 
@@ -52,8 +64,13 @@ private:
   // Read Map register and Map request msg
   virtual void HandleReadFromClient (Ptr<Socket> socket);
 
+  virtual void PopulateDatabase (Ptr<MapRegisterMsg> msg);
+
   Ptr<MapTables> m_mapTablesv4;
   Ptr<MapTables> m_mapTablesv6;
+
+  Time m_searchTime;                        //!< Time consumed for EID-RLOC mapping search
+
 };
 
 

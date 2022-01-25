@@ -66,7 +66,7 @@ public:
    */
   enum MapSockMsgType
   {
-    MAPM_ADD = 1,     //!< Add Mapping
+    MAPM_ADD = 1,     //!< Add Mapping to Cache
     MAPM_DELETE,      //!< Delete Mapping
     MAPM_GET,         //!< Get Mapping
     MAPM_MISS,        //!< Lookup failed
@@ -76,7 +76,9 @@ public:
     MAPM_LSBITS,      //!< Locator Status Bits changed
     MAPM_LOCALSTALE,  //!< Local map version is stale
     MAPM_REMOTESTALE, //!< Remote version is stale
-    MAPM_NONCEMISMATCH//!< Received a mismatching nonce
+    MAPM_NONCEMISMATCH, //!< Received a mismatching nonce
+    MAPM_DATABASE_UPDATE, //!< Update a EID-RLOC mapping entry in Database, if the EID is not a key. Add this mapping entry.
+    MAPM_REGISTER //!< For LISP-MN, if DHCP send mapping to database, send map register message again.
   };
 
   /**
@@ -143,6 +145,7 @@ public:
   virtual int Bind (void);
   virtual int Bind6 (void);
   virtual int GetSockName (Address &address) const;
+  virtual int GetPeerName (Address &address) const;
   virtual int Close (void);
   virtual int ShutdownSend (void);
   virtual int ShutdownRecv (void);

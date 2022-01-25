@@ -79,6 +79,32 @@ void LispHelper::Install (Ptr<Node> node) const
   lisp->SetRlocsList (m_rlocsList);
   // now we can open the mapping socket
   lisp->OpenLispMappingSocket ();
+  /**
+   * After trying and comparing, it is better to create mapTablesv4 and mapTablesv6
+   * within lisp-helper. For normal xTRs, it makes no sense, because LispHelper::InstallMapTables()
+   * iterates the NodeContainer and assign the corresponding map Tables to lispOverIpv4. The two
+   * smart pointers will be replace.
+   * However, for LISP-MN, the following two instructions are important: because program
+   * 's configuration XML file has no entries for LISP-MN. Thus, LISP-MN has no map tables,
+   * which will lead to segmentation fault for packet copy-forwarding.
+   * We make sure once lispOverIpv4 is created, mapTables are always accessible.
+   */
+  Ptr<MapTables> mapTablesv4 = Create<SimpleMapTables>();
+  Ptr<MapTables> mapTablesv6 = Create<SimpleMapTables>();
+  lisp->SetMapTablesIpv4 (mapTablesv4);
+  lisp->SetMapTablesIpv6 (mapTablesv6);
+  /**
+   * IMPORTANT: DO NOT FORGET TO CREATE LispStatistics for lispOverIpv4 object.
+   * Otherwise the statistics work in LispOverIpv4Impl::LispOutput will encounter
+   * segmentation fault (cause these two statistics-related object is not created!)
+   *
+   * At the first glance, you would say it is wrong to set a statistics object for ipv6,
+   * for a ipv4 lisp. However, note that ipv4 and ipv4 can be used mixly. for example
+   * inner header is ipv6, but the withdrew may be ipv4.
+   */
+  Ptr<LispStatistics> statisticsForV4 = Create<LispStatistics> ();
+  Ptr<LispStatistics> statisticsForV6 = Create<LispStatistics> ();
+  lisp->SetLispStatistics (statisticsForV4, statisticsForV6);
 }
 
 void LispHelper::Install (NodeContainer c) const
@@ -128,6 +154,7 @@ void LispHelper::InstallMapTables (NodeContainer c)
           // get address of the interface associated to device
           uint32_t interface;
           Address ifAddress;
+          NS_LOG_DEBUG ("Checking for net device index " << unsigned(j));
 
           if (ipv4)
             {
@@ -144,9 +171,11 @@ void LispHelper::InstallMapTables (NodeContainer c)
 
           //NS_LOG_DEBUG ("If Address type: " << ifAddress.);
           //if (Ipv4Address::IsMatchingType (ifAddress))
-          NS_LOG_DEBUG ("CHECKING DEVICES ADDRESSES FOR MAPTABLES" << Ipv4Address::ConvertFrom (ifAddress));
+          NS_LOG_DEBUG ("CHECKING DEVICES ADDRESSES FOR MAPTABLES " << Ipv4Address::ConvertFrom (ifAddress));
+//            NS_LOG_DEBUG ("m_mapTablesIpv4 " << m_mapTablesIpv4);
           if (!ok && m_mapTablesIpv4.find (ifAddress) != m_mapTablesIpv4.end ())
             {
+              NS_LOG_DEBUG ("Find current address " << Ipv4Address::ConvertFrom (ifAddress));
               mapTablesIpv4 = m_mapTablesIpv4.at (ifAddress);
               // they are added at the same time so if mapTablesIpv4 exists, the stats also exist.
               statisticsForV4 = m_lispStatisticsMapForV4.at (ifAddress);

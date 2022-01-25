@@ -127,6 +127,16 @@ int LispMappingSocket::GetSockName (Address &address) const
 
 }
 
+int LispMappingSocket::GetPeerName (Address &address) const
+{
+  //Implemented by Yue.
+  //I'm not sure the following implementation is correct
+  NS_LOG_FUNCTION (this << address);
+  address = MappingSocketAddress::ConvertFrom (m_destAddres);
+  return 0;
+
+}
+
 int LispMappingSocket::Close (void)
 {
   if (m_shutdownRecv == true && m_shutdownSend == true)
@@ -166,7 +176,7 @@ int LispMappingSocket::SendTo (Ptr<Packet> p, uint32_t flags,
                                const Address &toAddress)
 {
   NS_LOG_FUNCTION (this << p << flags << toAddress);
-  NS_LOG_DEBUG ("IN SENDTO");
+
   if (!m_connected)
     {
       NS_LOG_LOGIC ("ERROR_BADF");
@@ -187,6 +197,8 @@ int LispMappingSocket::SendTo (Ptr<Packet> p, uint32_t flags,
     }
   MappingSocketAddress address = MappingSocketAddress::ConvertFrom (toAddress);
   uint8_t sockIndex = address.GetSockIndex ();
+  NS_LOG_DEBUG ("Send a packet to: " << address << ", address Socket Index is: " << unsigned(sockIndex));
+
 
   Address fromAddress = static_cast<Address> (MappingSocketAddress ());
   GetSockName (fromAddress);

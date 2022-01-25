@@ -37,12 +37,12 @@ public:
 
   enum LispControlMsgType
   {
-    MAP_REQUEST = 1,
-    MAP_REPLY = 2,
-    MAP_REGISTER = 3,
-    MAP_NOTIFY = 4,
-    MAP_REFERRAL = 6,
-    MAP_ENCAP_CONTROL_MSG = 8,
+    MAP_REQUEST = 0x01,
+    MAP_REPLY = 0x02,
+    MAP_REGISTER = 0x03,
+    MAP_NOTIFY = 0x04,
+    MAP_REFERRAL = 0x06,
+    MAP_ENCAP_CONTROL_MSG = 0x08,
   };
 
   /*
@@ -53,7 +53,7 @@ public:
   enum AddressFamily
   {
     IP = 1,
-    IPV6,
+    IPV6 = 2,
   };
 
 

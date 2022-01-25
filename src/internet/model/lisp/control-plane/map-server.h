@@ -25,6 +25,7 @@
 #include "ns3/event-id.h"
 #include "ns3/ptr.h"
 #include "ns3/traced-callback.h"
+#include "ns3/map-tables.h"
 
 namespace ns3 {
 
@@ -64,6 +65,7 @@ private:
 
   // Read Map register and Map request msg
   virtual void HandleReadFromClient (Ptr<Socket> socket);
+
 
 };
 

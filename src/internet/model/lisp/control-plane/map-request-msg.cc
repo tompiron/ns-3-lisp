@@ -21,19 +21,13 @@
 
 namespace ns3 {
 
+NS_LOG_COMPONENT_DEFINE ("MapRequestMsg");
+
 const LispControlMsg::LispControlMsgType msgType = LispControlMsg::MAP_REQUEST;
 
 MapRequestMsg::MapRequestMsg () :
-  m_A (0),
-  m_M (0),
-  m_P (0),
-  m_S (0),
-  m_p (0),
-  m_s (0),
-  m_reserved (0),
-  m_irc (0),
-  m_recordCount (1),
-  m_nonce (0)
+  m_A (0), m_M (0), m_P (0), m_S (0), m_p (0), m_s (0), m_reserved (0), m_irc (0), m_recordCount (
+    1), m_nonce (0)
 {
   m_sourceEidAfi = LispControlMsg::IP;
   m_sourceEidAddress = static_cast<Address> (Ipv4Address ());
@@ -178,9 +172,76 @@ Ptr<MapRequestRecord> MapRequestMsg::GetMapRequestRecord (void)
 
 void MapRequestMsg::Serialize (uint8_t *buf) const
 {
+  uint8_t type = static_cast<uint8_t> (LispControlMsg::MAP_REQUEST);
+  uint8_t type_AMPS = 0;
+
+  type_AMPS = type << 4 | (m_A << 3) | (m_M << 2) | (m_P << 1) | m_S;
+  // Byte for flag p,s and 6 bits of reserved field
+  uint8_t ps_partialReseverd = 0 | (m_p << 7) | (m_s << 6);
+
+  buf[0] = type_AMPS;
+  buf[1] = ps_partialReseverd;
+  buf[2] = m_reserved | m_irc;
+  buf[3] = m_recordCount;
+
+  buf[4] = (m_nonce >> 56) & 0xffff;
+  buf[5] = (m_nonce >> 48) & 0xffff;
+  buf[6] = (m_nonce >> 40) & 0xffff;
+  buf[7] = (m_nonce >> 32) & 0xffff;
+  buf[8] = (m_nonce >> 24) & 0xffff;
+  buf[9] = (m_nonce >> 16) & 0xffff;
+  buf[10] = (m_nonce >> 8) & 0xffff;
+  buf[11] = (m_nonce >> 0) & 0xffff;
+
+  buf[12] = 0x00;
+  buf[13] = static_cast<uint8_t> (m_sourceEidAfi);
+
+  uint8_t size = 14;
+  if (m_sourceEidAfi == LispControlMsg::IP)
+    {
+      Ipv4Address::ConvertFrom (m_sourceEidAddress).Serialize (buf + size);
+      size += 4;
+    }
+  else if (m_sourceEidAfi == LispControlMsg::IPV6)
+    {
+      Ipv6Address::ConvertFrom (m_sourceEidAddress).Serialize (buf + size);
+      size += 16;
+    }
+  // Now serialize ITR-RLOC-AFI 1 and ITR-RLOC-Address 1
+  if (!Ipv4Address ().IsEqual (Ipv4Address::ConvertFrom (m_itrRlocAddrIp)))
+    {
+      buf[size] = 0x00;
+      size += 1;
+      buf[size] = 1;
+      size++;
+      Ipv4Address::ConvertFrom (m_itrRlocAddrIp).Serialize (buf + size);
+      size += 4;
+    }
+  else
+    {
+      buf[size] = 0;
+      size++;
+    }
+
+//	if (!Ipv6Address::ConvertFrom(m_itrRlocAddrIpv6).IsEqual(Ipv6Address())) {
+//		buf[size] = 1;
+//		size++;
+//		Ipv6Address::ConvertFrom(m_itrRlocAddrIpv6).Serialize(buf + size);
+//		size += 16;
+//	} else {
+//		buf[size] = 0;
+//		size++;
+//	}
+
+  m_mapReqRec->Serialize (buf + size);
+}
+
+void MapRequestMsg::SerializeOld (uint8_t *buf) const
+{
   uint8_t AMPSpsres = 0;
 
-  AMPSpsres = (m_A << 7) | (m_M << 6) | (m_P << 5) | (m_S << 4) | (m_p << 3) | (m_s << 2) | (m_reserved);
+  AMPSpsres = (m_A << 7) | (m_M << 6) | (m_P << 5) | (m_S << 4) | (m_p << 3)
+    | (m_s << 2) | (m_reserved);
 
   buf[0] = static_cast<uint8_t> (LispControlMsg::MAP_REQUEST);
   buf[1] = AMPSpsres;
@@ -212,6 +273,8 @@ void MapRequestMsg::Serialize (uint8_t *buf) const
 
   if (!Ipv4Address ().IsEqual (Ipv4Address::ConvertFrom (m_itrRlocAddrIp)))
     {
+      buf[size] = 0x00;
+      size += 1;
       buf[size] = 1;
       size++;
       Ipv4Address::ConvertFrom (m_itrRlocAddrIp).Serialize (buf + size);
@@ -223,26 +286,112 @@ void MapRequestMsg::Serialize (uint8_t *buf) const
       size++;
     }
 
-
-  if (!Ipv6Address::ConvertFrom (m_itrRlocAddrIpv6).IsEqual (Ipv6Address ()))
-    {
-      buf[size] = 1;
-      size++;
-      Ipv6Address::ConvertFrom (m_itrRlocAddrIpv6).Serialize (buf + size);
-      size += 16;
-    }
-  else
-    {
-      buf[size] = 0;
-      size++;
-    }
+//	if (!Ipv6Address::ConvertFrom(m_itrRlocAddrIpv6).IsEqual(Ipv6Address())) {
+//		buf[size] = 1;
+//		size++;
+//		Ipv6Address::ConvertFrom(m_itrRlocAddrIpv6).Serialize(buf + size);
+//		size += 16;
+//	} else {
+//		buf[size] = 0;
+//		size++;
+//	}
 
   m_mapReqRec->Serialize (buf + size);
 }
 
 Ptr<MapRequestMsg> MapRequestMsg::Deserialize (uint8_t *buf)
 {
-  Ptr<MapRequestMsg> msg = Create<MapRequestMsg> ();
+  NS_LOG_FUNCTION_NOARGS ();
+  Ptr<MapRequestMsg> msg = Create<MapRequestMsg>();
+  // The first bits are about Type, in this case 1
+  // Do not forget to take and bitwise operation with 0x01 to extract each flag value
+  uint8_t type_AMPS = buf[0];
+  msg->SetA ((type_AMPS >> 3) & 0x01);
+  msg->SetM ((type_AMPS >> 2) & 0x01);
+  msg->SetP ((type_AMPS >> 1) & 0x01);
+  msg->SetS (type_AMPS & 0x01);
+  uint8_t ps_partialReseverd = buf[1];
+
+  msg->SetP2 (ps_partialReseverd >> 7);
+  msg->SetS2 (ps_partialReseverd >> 6);
+
+  msg->SetIrc (buf[2]);
+  msg->SetRecordCount (buf[3]);
+
+  uint64_t nonce = 0;
+  nonce |= buf[4];
+  nonce <<= 8;
+  nonce |= buf[5];
+  nonce <<= 8;
+  nonce |= buf[6];
+  nonce <<= 8;
+  nonce |= buf[7];
+  nonce <<= 8;
+  nonce |= buf[8];
+  nonce <<= 8;
+  nonce |= buf[9];
+  nonce <<= 8;
+  nonce |= buf[10];
+  nonce <<= 8;
+  nonce |= buf[11];
+
+  msg->SetNonce (nonce);
+  //Actually, buf[12] = 0, cause source-Eid-AFi holds 2 bytes. Only the second byte counts
+  msg->SetSourceEidAfi (static_cast<LispControlMsg::AddressFamily> (buf[13]));
+  NS_LOG_DEBUG (
+    "Decoded IRC: " << unsigned(buf[2]) <<
+      ";Decoded Nonce: " << static_cast<uint64_t> (nonce) <<
+      ";Decoded Source EID family: " << static_cast<LispControlMsg::AddressFamily> (buf[13])
+
+    );
+  uint8_t size = 14;
+
+  if (msg->GetSourceEidAfi () == LispControlMsg::IP)
+    {
+      Address decoded_eid = static_cast<Address> (Ipv4Address::Deserialize (buf + size));
+      msg->SetSourceEidAddr (decoded_eid);
+      NS_LOG_DEBUG ("Decode source EID Address: " << Ipv4Address::ConvertFrom (decoded_eid));
+      size += 4;
+    }
+  else
+    {
+      msg->SetSourceEidAddr (
+        static_cast<Address> (Ipv6Address::Deserialize (buf + size)));
+      size += 16;
+    }
+  //First byte of ITR-RLOC AFI is 00, skip it...
+  size++;
+  if (buf[size] == 1)
+    {
+      size++;
+      Address decoded_itr_rloc = (Ipv4Address::Deserialize (buf + size));
+      msg->SetItrRlocAddrIp (decoded_itr_rloc);
+      NS_LOG_DEBUG ("Decode ITR RLOC Address (sending map request): " << Ipv4Address::ConvertFrom (decoded_itr_rloc));
+      size += 4;
+    }
+  else
+    {
+      msg->SetItrRlocAddrIp (static_cast<Address> (Ipv4Address ()));
+      size++;
+    }
+
+//	if (buf[size] == 1) {
+//		size++;
+//		msg->SetItrRlocAddrIpv6(
+//				static_cast<Address>(Ipv6Address::Deserialize(buf + size)));
+//		size += 16;
+//	} else {
+//		msg->SetItrRlocAddrIpv6(static_cast<Address>(Ipv6Address()));
+//		size++;
+//	}
+
+  msg->SetMapRequestRecord (MapRequestRecord::Deserialize (buf + size));
+  return msg;
+}
+
+Ptr<MapRequestMsg> MapRequestMsg::DeserializeOld (uint8_t *buf)
+{
+  Ptr<MapRequestMsg> msg = Create<MapRequestMsg>();
 
   uint8_t AMPSpsres = buf[1];
   msg->SetA (AMPSpsres >> 7);
@@ -280,19 +429,22 @@ Ptr<MapRequestMsg> MapRequestMsg::Deserialize (uint8_t *buf)
 
   if (msg->GetSourceEidAfi () == LispControlMsg::IP)
     {
-      msg->SetSourceEidAddr (static_cast<Address> (Ipv4Address::Deserialize (buf + size)));
+      msg->SetSourceEidAddr (
+        static_cast<Address> (Ipv4Address::Deserialize (buf + size)));
       size += 4;
     }
   else
     {
-      msg->SetSourceEidAddr (static_cast<Address> (Ipv6Address::Deserialize (buf + size)));
+      msg->SetSourceEidAddr (
+        static_cast<Address> (Ipv6Address::Deserialize (buf + size)));
       size += 16;
     }
 
   if (buf[size] == 1)
     {
       size++;
-      msg->SetItrRlocAddrIp (static_cast<Address> (Ipv4Address::Deserialize (buf + size)));
+      msg->SetItrRlocAddrIp (
+        static_cast<Address> (Ipv4Address::Deserialize (buf + size)));
       size += 4;
     }
   else
@@ -304,7 +456,8 @@ Ptr<MapRequestMsg> MapRequestMsg::Deserialize (uint8_t *buf)
   if (buf[size] == 1)
     {
       size++;
-      msg->SetItrRlocAddrIpv6 (static_cast<Address> (Ipv6Address::Deserialize (buf + size)));
+      msg->SetItrRlocAddrIpv6 (
+        static_cast<Address> (Ipv6Address::Deserialize (buf + size)));
       size += 16;
     }
   else
@@ -319,33 +472,34 @@ Ptr<MapRequestMsg> MapRequestMsg::Deserialize (uint8_t *buf)
 
 void MapRequestMsg::Print (std::ostream& os) const
 {
-  os << "A " << unsigned(m_A) << " "
-     << "M " << unsigned(m_M) << " "
-     << "P " << unsigned(m_P) << " "
-     << "S " << unsigned(m_S) << " "
-     << "p " << unsigned(m_p) << " "
-     << "s " << unsigned(m_s) << " "
-     << "IRC " << unsigned(m_irc) << " "
-     << "Record Count " << unsigned(m_recordCount) << " "
-     << "Nonce " << unsigned(m_nonce) << " "
-     << "EID AFI " << unsigned(static_cast<int> (m_sourceEidAfi)) << " ";
+  os << "A " << unsigned(m_A) << " " << "M " << unsigned(m_M) << " " << "P "
+     << unsigned(m_P) << " " << "S " << unsigned(m_S) << " " << "p "
+     << unsigned(m_p) << " " << "s " << unsigned(m_s) << " " << "IRC "
+     << unsigned(m_irc) << " " << "Record Count "
+     << unsigned(m_recordCount) << " " << "Nonce " << unsigned(m_nonce)
+     << " " << "EID AFI " << unsigned(static_cast<int> (m_sourceEidAfi))
+     << " ";
 
   if (m_sourceEidAfi == LispControlMsg::IP)
     {
-      os << "Source EID " << Ipv4Address::ConvertFrom (m_sourceEidAddress) << " ";
+      os << "Source EID " << Ipv4Address::ConvertFrom (m_sourceEidAddress)
+         << " ";
     }
   else if (m_sourceEidAfi == LispControlMsg::IPV6)
     {
-      os << "Source EID " << Ipv6Address::ConvertFrom (m_sourceEidAddress) << " ";
+      os << "Source EID " << Ipv6Address::ConvertFrom (m_sourceEidAddress)
+         << " ";
     }
 
   if (!Ipv4Address::ConvertFrom (m_itrRlocAddrIp).IsEqual (Ipv4Address ()))
     {
-      os << "ITR RLOC v4 " << Ipv4Address::ConvertFrom (m_itrRlocAddrIp) << " ";
+      os << "ITR RLOC v4 " << Ipv4Address::ConvertFrom (m_itrRlocAddrIp)
+         << " ";
     }
   if (!Ipv6Address::ConvertFrom (m_itrRlocAddrIpv6).IsEqual (Ipv6Address ()))
     {
-      os << "ITR RLOC v6 " << Ipv6Address::ConvertFrom (m_itrRlocAddrIpv6) << " ";
+      os << "ITR RLOC v6 " << Ipv6Address::ConvertFrom (m_itrRlocAddrIpv6)
+         << " ";
     }
 
   os << "\nRequest Record ";
@@ -358,97 +512,5 @@ LispControlMsg::LispControlMsgType MapRequestMsg::GetMsgType (void)
 }
 
 
-MapRequestRecord::MapRequestRecord ()
-{
-  m_afi = LispControlMsg::IP;
-  m_eidMaskLenght = 0;
-  m_eidPrefix = static_cast<Address> (Ipv4Address ());
-}
-
-MapRequestRecord::MapRequestRecord (Address eidPrefix, uint8_t eidMaskLength)
-{
-  m_afi = LispControlMsg::IP;
-  m_eidPrefix = eidPrefix;
-  m_eidMaskLenght = eidMaskLength;
-}
-
-MapRequestRecord::~MapRequestRecord ()
-{
-
-}
-
-LispControlMsg::AddressFamily MapRequestRecord::GetAfi (void)
-{
-  return m_afi;
-}
-void MapRequestRecord::SetAfi (LispControlMsg::AddressFamily afi)
-{
-  m_afi = afi;
-}
-
-void MapRequestRecord::SetMaskLenght (uint8_t maskLenght)
-{
-  m_eidMaskLenght = maskLenght;
-}
-uint8_t MapRequestRecord::GetMaskLength (void)
-{
-  return m_eidMaskLenght;
-}
-
-void MapRequestRecord::SetEidPrefix (Address prefix)
-{
-  m_eidPrefix = prefix;
-}
-Address MapRequestRecord::GetEidPrefix (void)
-{
-  return m_eidPrefix;
-}
-
-void MapRequestRecord::Serialize (uint8_t *buf) const
-{
-  buf[0] = static_cast<uint8_t> (m_afi);
-  buf[1] = m_eidMaskLenght;
-  if (m_afi == LispControlMsg::IP)
-    {
-      Ipv4Address::ConvertFrom (m_eidPrefix).Serialize (buf + 2);
-    }
-  else
-    {
-      Ipv6Address::ConvertFrom (m_eidPrefix).Serialize (buf + 2);
-    }
-}
-
-Ptr<MapRequestRecord> MapRequestRecord::Deserialize (uint8_t *buf)
-{
-  Ptr<MapRequestRecord> record = Create<MapRequestRecord> ();
-
-  record->SetAfi (static_cast<LispControlMsg::AddressFamily> (buf[0]));
-  record->SetMaskLenght (buf[1]);
-
-  if (record->GetAfi () == LispControlMsg::IP)
-    {
-      record->SetEidPrefix (static_cast<Address> (Ipv4Address::Deserialize (buf + 2)));
-    }
-  else
-    {
-      record->SetEidPrefix (static_cast<Address> (Ipv6Address::Deserialize (buf + 2)));
-    }
-  return record;
-}
-
-void MapRequestRecord::Print (std::ostream& os)
-{
-
-  os << "EID PREFIX AFI " << unsigned(static_cast<int> (m_afi)) << " "
-     << "Mask Length " << unsigned(m_eidMaskLenght);
-  if (m_afi == LispControlMsg::IP)
-    {
-      os << "EID prefix" << Ipv4Address::ConvertFrom (m_eidPrefix) << " ";
-    }
-  else if (m_afi == LispControlMsg::IPV6)
-    {
-      os << "EID prefix" << Ipv6Address::ConvertFrom (m_eidPrefix) << " ";
-    }
-}
 
 } /* namespace ns3 */

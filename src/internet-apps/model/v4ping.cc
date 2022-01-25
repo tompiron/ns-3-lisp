@@ -32,14 +32,14 @@ NS_LOG_COMPONENT_DEFINE ("V4Ping");
 
 NS_OBJECT_ENSURE_REGISTERED (V4Ping);
 
-TypeId 
+TypeId
 V4Ping::GetTypeId (void)
 {
   static TypeId tid = TypeId ("ns3::V4Ping")
     .SetParent<Application> ()
-    .SetGroupName("Internet-Apps")
+    .SetGroupName ("Internet-Apps")
     .AddConstructor<V4Ping> ()
-    .AddAttribute ("Remote", 
+    .AddAttribute ("Remote",
                    "The address of the machine we want to ping.",
                    Ipv4AddressValue (),
                    MakeIpv4AddressAccessor (&V4Ping::m_remote),
@@ -61,17 +61,16 @@ V4Ping::GetTypeId (void)
                      "The rtt calculated by the ping.",
                      MakeTraceSourceAccessor (&V4Ping::m_traceRtt),
                      "ns3::Time::TracedCallback");
-  ;
   return tid;
 }
 
 V4Ping::V4Ping ()
   : m_interval (Seconds (1)),
-    m_size (56),
-    m_socket (0),
-    m_seq (0),
-    m_verbose (false),
-    m_recv (0)
+  m_size (56),
+  m_socket (0),
+  m_seq (0),
+  m_verbose (false),
+  m_recv (0)
 {
   NS_LOG_FUNCTION (this);
 }
@@ -146,8 +145,8 @@ V4Ping::Receive (Ptr<Socket> socket)
                   Read32 ((const uint8_t *) &buf[0], nodeId);
                   Read32 ((const uint8_t *) &buf[1], appId);
 
-                  if (nodeId == GetNode ()->GetId () &&
-                      appId == GetApplicationId ())
+                  if (nodeId == GetNode ()->GetId ()
+                      && appId == GetApplicationId ())
                     {
                       Time sendTime = i->second;
                       NS_ASSERT (Simulator::Now () >= sendTime);
@@ -178,7 +177,7 @@ V4Ping::Receive (Ptr<Socket> socket)
 void
 V4Ping::Write32 (uint8_t *buffer, const uint32_t data)
 {
-  NS_LOG_FUNCTION (this << (void *) buffer << data);
+  NS_LOG_FUNCTION (this << buffer << data);
   buffer[0] = (data >> 0) & 0xff;
   buffer[1] = (data >> 8) & 0xff;
   buffer[2] = (data >> 16) & 0xff;
@@ -189,11 +188,11 @@ V4Ping::Write32 (uint8_t *buffer, const uint32_t data)
 void
 V4Ping::Read32 (const uint8_t *buffer, uint32_t &data)
 {
-  NS_LOG_FUNCTION (this << (void *) buffer << data);
+  NS_LOG_FUNCTION (this << buffer << data);
   data = (buffer[3] << 24) + (buffer[2] << 16) + (buffer[1] << 8) + buffer[0];
 }
 
-void 
+void
 V4Ping::Send ()
 {
   NS_LOG_FUNCTION (this);
@@ -212,7 +211,10 @@ V4Ping::Send ()
   // be too surprised when you see that this is a little endian convention.
   //
   uint8_t* data = new uint8_t[m_size];
-  for (uint32_t i = 0; i < m_size; ++i) data[i] = 0;
+  for (uint32_t i = 0; i < m_size; ++i)
+    {
+      data[i] = 0;
+    }
   NS_ASSERT (m_size >= 16);
 
   uint32_t tmp = GetNode ()->GetId ();
@@ -238,7 +240,7 @@ V4Ping::Send ()
   delete[] data;
 }
 
-void 
+void
 V4Ping::StartApplication (void)
 {
   NS_LOG_FUNCTION (this);
@@ -263,7 +265,7 @@ V4Ping::StartApplication (void)
 
   Send ();
 }
-void 
+void
 V4Ping::StopApplication (void)
 {
   NS_LOG_FUNCTION (this);
@@ -281,15 +283,17 @@ V4Ping::StopApplication (void)
     {
       std::ostringstream os;
       os.precision (4);
-      os << "--- " << m_remote << " ping statistics ---\n" 
+      os << "--- " << m_remote << " ping statistics ---\n"
          << m_seq << " packets transmitted, " << m_recv << " received, "
          << ((m_seq - m_recv) * 100 / m_seq) << "% packet loss, "
          << "time " << (Simulator::Now () - m_started).GetMilliSeconds () << "ms\n";
 
       if (m_avgRtt.Count () > 0)
-        os << "rtt min/avg/max/mdev = " << m_avgRtt.Min () << "/" << m_avgRtt.Avg () << "/"
-           << m_avgRtt.Max () << "/" << m_avgRtt.Stddev ()
-           << " ms\n";
+        {
+          os << "rtt min/avg/max/mdev = " << m_avgRtt.Min () << "/" << m_avgRtt.Avg () << "/"
+             << m_avgRtt.Max () << "/" << m_avgRtt.Stddev ()
+             << " ms\n";
+        }
       std::cout << os.str ();
     }
 }

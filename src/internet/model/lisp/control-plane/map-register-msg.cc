@@ -19,8 +19,8 @@
  */
 #include "map-register-msg.h"
 
-
 namespace ns3 {
+NS_LOG_COMPONENT_DEFINE ("MapRegisterMsg");
 
 MapRegisterMsg::MapRegisterMsg ()
 {
@@ -66,6 +66,40 @@ void MapRegisterMsg::SetRecordCount (uint8_t count)
   m_recordCount = count;
 }
 
+
+uint32_t MapRegisterMsg::getAuthData ()
+{
+  return m_authData;
+}
+
+void MapRegisterMsg::setAuthData (uint32_t authData)
+{
+  m_authData = authData;
+}
+
+uint16_t MapRegisterMsg::getKeyId ()
+{
+  return m_keyID;
+}
+
+void MapRegisterMsg::setKeyId (uint16_t keyId)
+{
+  m_keyID = keyId;
+}
+
+void MapRegisterMsg::SetAuthDataLen (uint16_t authDataLen)
+{
+  m_authDataLen = authDataLen;
+}
+
+uint16_t MapRegisterMsg::GetAuthDataLen (void)
+{
+  return m_authDataLen;
+}
+
+
+uint64_t GetNonce (void);
+
 void MapRegisterMsg::SetRecord (Ptr<MapReplyRecord> record)
 {
   m_record = record;
@@ -78,57 +112,105 @@ Ptr<MapReplyRecord> MapRegisterMsg::GetRecord (void)
 
 void MapRegisterMsg::Serialize (uint8_t *buf)
 {
-  buf[0] = static_cast<uint8_t> (LispControlMsg::MAP_REGISTER);
-  uint8_t PMrsvd = (m_P << 7) | (m_M << 6) | reserved;
-  buf[1] = PMrsvd;
-  buf[2] = m_recordCount;
+  //NS_LOG_FUNCTION(this);
+  uint8_t type = static_cast<uint8_t> (LispControlMsg::MAP_REGISTER) << 4;
 
-  buf[3] = (m_nonce >> 56) & 0xffff;
-  buf[4] = (m_nonce >> 48) & 0xffff;
-  buf[5] = (m_nonce >> 40) & 0xffff;
-  buf[6] = (m_nonce >> 32) & 0xffff;
-  buf[7] = (m_nonce >> 24) & 0xffff;
-  buf[8] = (m_nonce >> 16) & 0xffff;
-  buf[9] = (m_nonce >> 8) & 0xffff;
-  buf[10] = (m_nonce >> 0) & 0xffff;
+  buf[0] = (type) | (m_P << 3);
+  buf[1] = 0x00;
+  buf[2] = m_M;
+  buf[3] = m_recordCount;
 
-  uint8_t size = 11;
+  int nonce_size = 8;
+  for (int i = 0; i < nonce_size; i++)
+    {
+      buf[4 + i] = (m_nonce >> 8 * (nonce_size - i - 1)) & 0xffff;
+    }
+  // Key ID field
+  buf[12] = (m_keyID >> 8 ) & 0xff;
+  buf[13] = m_keyID & 0xff;
+  // Authentication data length field
+  // This is the length in octets of the authentication data field that follows this field
+  int authen_len_size = 2;
+
+  for (int i = 0; i < authen_len_size; i++)
+    {
+      buf[14 + i] = (m_authDataLen >> 8 * (authen_len_size - 1 - i)) & 0xff;
+    }
+
+  uint8_t size = 16;
+  // Authentication data field
+  buf[16] = 0xaa;
+  buf[17] = 0xbb;
+  buf[18] = 0xcc;
+  buf[19] = 0xdd;
+
+  size += m_authDataLen;
 
   m_record->Serialize (buf + size);
 }
 
 Ptr<MapRegisterMsg> MapRegisterMsg::Deserialize (uint8_t *buf)
 {
-  Ptr<MapRegisterMsg> msg = Create<MapRegisterMsg> ();
+  Ptr<MapRegisterMsg> msg = Create<MapRegisterMsg>();
 
-  msg->SetP (buf[1] >> 7);
-  msg->SetM (buf[1] >> 6);
+  msg->SetP ((buf[0] >> 3) & 0x01);
+  msg->SetM (buf[2]);
 
-  msg->SetRecordCount (buf[2]);
+  msg->SetRecordCount (buf[3]);
 
   uint64_t nonce = 0;
-  nonce |= buf[3];
-  nonce <<= 8;
-  nonce |= buf[4];
-  nonce <<= 8;
-  nonce |= buf[5];
-  nonce <<= 8;
-  nonce |= buf[6];
-  nonce <<= 8;
-  nonce |= buf[7];
-  nonce <<= 8;
-  nonce |= buf[8];
-  nonce <<= 8;
-  nonce |= buf[9];
-  nonce <<= 8;
-  nonce |= buf[10];
 
+  int nonce_size = 8;
+
+  for (int i = 0; i < nonce_size; i++)
+    {
+      nonce <<= 8;
+      nonce |= buf[4 + i];
+    }
   msg->SetNonce (nonce);
+  uint8_t size = 12;
 
-  uint8_t size = 11;
+  // Retrieve key ID field
+  int keyID_size = 2;
+  uint16_t keyID = 0;
+  for (int i = 0; i < keyID_size; i++)
+    {
+      keyID <<= 8;
+      keyID |= buf[size + i];
+    }
 
+  size += keyID_size;
+
+  // It's very dangereous to hard code the length of authentication data
+  // field!!!
+  // Authen Data field always holds 2 bytes!
+  int authDataLen_size = 2;
+  uint16_t authDataLen = 0;
+  for (int i = 0; i < authDataLen_size; i++)
+    {
+      authDataLen <<= 8;
+      authDataLen |= buf[size + i];
+    }
+  msg->SetAuthDataLen (authDataLen);
+  size += authDataLen_size;
+  uint32_t authData = 0;
+  for (int i = 0; i < authDataLen; i++)
+    {
+      authData <<= 8;
+      authData |= buf[size + i];
+    }
+  msg->setAuthData (authData);
+  // authDataLen is the number of bytes held by auth data
+  size += authDataLen;
+
+  NS_LOG_DEBUG (
+    "Decoded Record Count: " << unsigned(buf[3]) <<
+      ";Decoded Key ID: " << keyID <<
+      ";Authentication data length: " << authDataLen <<
+      ";Authentication data: " << authData
+    );
+  //but is actually the address of the first element in buf array!
   msg->SetRecord (MapReplyRecord::Deserialize (buf + size));
-
   return msg;
 }
 

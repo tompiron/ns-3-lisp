@@ -1,6 +1,6 @@
 
-    The Network Simulator, Version 3 (modified to support LISP)
-    ----------------------------------------------------------
+    The Network Simulator, Version 3
+    --------------------------------
 
 Table of Contents:
 ------------------
@@ -10,7 +10,6 @@ Table of Contents:
 3) Running ns-3
 4) Getting access to the ns-3 documentation
 5) Working with the development version of ns-3
-6) About LISP
 
 Note:  Much more substantial information about ns-3 can be found at
 http://www.nsnam.org
@@ -116,17 +115,3 @@ familiar with it.
 If you have successfully installed mercurial, you can get
 a copy of the development version with the following command:
 "hg clone http://code.nsnam.org/ns-3-dev"
-
-6) About LISP
-------------
-
-The LISP protocol has been implemented in this version of ns-3.
-You can check the implementation in the "internet" module (src/internet/model/lisp).
-We have chosen to implement it in the "internet" module as there is an
-interdependence between the LISP implementation and the "internet" module.
-For some examples on how to use the LISP implementation, feel free to
-check the "src/internet/examples/lisp" folder. It contains some
-example source code files. When copying the examples in the
-"scratch" folder, don't forget to copy the corresponding ".txt"
-files. 
-

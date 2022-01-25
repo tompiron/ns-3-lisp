@@ -19,11 +19,12 @@
  */
 #ifndef SRC_INTERNET_HELPER_LISP_HELPER_LISP_ETR_ITR_APP_HELPER_H_
 #define SRC_INTERNET_HELPER_LISP_HELPER_LISP_ETR_ITR_APP_HELPER_H_
+
 #include <stdint.h>
+#include "ns3/lisp-etr-itr-application.h"
 #include "ns3/application-container.h"
 #include "ns3/node-container.h"
 #include "ns3/object-factory.h"
-#include "ns3/lisp-protocol.h"
 
 namespace ns3 {
 

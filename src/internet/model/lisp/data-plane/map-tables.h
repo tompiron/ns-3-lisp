@@ -8,20 +8,25 @@
 #ifndef MAPTABLES_H_
 #define MAPTABLES_H_
 
+//#include "ns3/lisp-etr-itr-application.h"
+#include "ns3/lisp-over-ip.h"
 #include "ns3/packet.h"
-#include "ns3/ptr.h"
+#include "ns3/locators.h" //it included lisp-protcol.h
+//#include "ns3/ptr.h"
 #include "ns3/simple-ref-count.h"
-#include "lisp-protocol.h"
-#include "lisp-over-ip.h"
+#include "ns3/map-entry.h"
+
+
 
 namespace ns3 {
-
-class LispProtocol;
-class LispOverIp;
-class Locators;
-class MapEntry;
-class Address;
+/**
+ * We encounter a cyclic reference situation between xTR application and map table here.
+ * We use forward declaration to break the cycle.
+ * Note that we have no include directive for xTR application header file.
+ */
+class LispEtrItrApplication;
 class LispHeader;
+class LispOverIp;
 
 class MapTables : public Object
 {
@@ -33,6 +38,24 @@ public:
   virtual Ptr<MapEntry> DatabaseLookup (const Address &eid) = 0;
 
   virtual Ptr<MapEntry> CacheLookup (const Address &eid) = 0;
+
+  virtual int GetNMapEntries (void) = 0;
+  /**
+   * \brief Get the number of mapping entries in LISP batabase
+   * \return the number of mapping entries in LISP database
+   */
+  virtual int GetNMapEntriesLispDataBase (void) = 0;
+  /**
+   * \brief Get the number of mapping entries in LISP Cache.
+   * \return the number of mapping entries in LISP Cache.
+   */
+  virtual int GetNMapEntriesLispCache (void) = 0;
+
+  /**
+   * \brief Print the Map Table content to the given output stream
+   * \param The output stream to which this SimpleMapTables is printed
+   */
+  virtual void Print (std::ostream &os) const = 0;
 
   enum MapEntryLocation
   {
@@ -52,10 +75,6 @@ public:
 
   virtual Ptr<Locator> SourceRlocSelection (Address const &srcEid, Ptr<const Locator> destLocator) = 0;
 
-  virtual void MapRequest (void) = 0;
-
-  virtual void MapFree (void) = 0;
-
   virtual bool IsMapForReceivedPacket (Ptr <const Packet> p, const LispHeader &header, const Address &srcRloc, const Address &destRloc) = 0;
 
   virtual void GetMapEntryList (MapEntryLocation location, std::list<Ptr<MapEntry> > &entryList) = 0;
@@ -69,13 +88,127 @@ public:
   Ptr<LispOverIp> GetLispOverIp (void);
   void SetLispOverIp (Ptr<LispOverIp> lispProtocol);
 
+  /**
+   * About how a derived class of the current class acesses an attribute of the base class:
+   * http://www.cplusplus.com/forum/general/5323/
+   * Another possibility is to use virtual function (i.e. polymorphism)
+   * http://www.cplusplus.com/doc/tutorial/polymorphism/
+   * In its dervied class, no need to declare the following two methods again.
+   */
+  virtual Ptr<LispEtrItrApplication> GetxTRApp () = 0;
+  virtual void SetxTRApp (Ptr<LispEtrItrApplication> xTRApp) = 0;
+
   void DbMiss (void);
   void DbHit (void);
   void CacheHit (void);
   void CacheMiss (void);
 
+  struct CompareEndpointId
+  {
+    //TODO: If want to support Ipv6, should modify...
+    bool
+    operator() (const Ptr<EndpointId> a, const Ptr<EndpointId> b) const
+    {
+      if (a->IsIpv4 ())
+        {
+          if (b->GetIpv4Mask ().IsEqual (Ipv4Mask ()))
+            {
+              if (Ipv4Address::ConvertFrom (a->GetEidAddress ()).CombineMask (
+                    a->GetIpv4Mask ()).Get ()
+                  > Ipv4Address::ConvertFrom (b->GetEidAddress ()).CombineMask (
+                    a->GetIpv4Mask ()).Get ())
+                {
+                  return true;
+                }
+              else if (Ipv4Address::ConvertFrom (a->GetEidAddress ()).CombineMask (
+                         a->GetIpv4Mask ()).Get ()
+                       < Ipv4Address::ConvertFrom (b->GetEidAddress ()).CombineMask (
+                         a->GetIpv4Mask ()).Get ())
+                {
+                  return false;
+                }
+            }
+          else if (a->GetIpv4Mask ().IsEqual (Ipv4Mask ()))
+            {
+              return Ipv4Address::ConvertFrom (a->GetEidAddress ()).CombineMask (
+                b->GetIpv4Mask ()).Get ()
+                     > Ipv4Address::ConvertFrom (b->GetEidAddress ()).CombineMask (
+                b->GetIpv4Mask ()).Get ();
+            }
+          else
+            {
+              if (Ipv4Address::ConvertFrom (a->GetEidAddress ()).CombineMask (
+                    a->GetIpv4Mask ()).Get ()
+                  > Ipv4Address::ConvertFrom (b->GetEidAddress ()).CombineMask (
+                    b->GetIpv4Mask ()).Get ())
+                {
+                  return true;
+                }
+              else if (Ipv4Address::ConvertFrom (a->GetEidAddress ()).CombineMask (
+                         a->GetIpv4Mask ()).Get ()
+                       < Ipv4Address::ConvertFrom (b->GetEidAddress ()).CombineMask (
+                         b->GetIpv4Mask ()).Get ())
+                {
+                  return false;
+                }
+              else
+                {
+                  return a->GetIpv4Mask ().GetPrefixLength ()
+                         > b->GetIpv4Mask ().GetPrefixLength ();
+                }
+            }
+        }
+      else
+        {
+          // TODO do the same for Ipv6
+          if (b->GetIpv6Prefix ().IsEqual (Ipv6Prefix ()))
+            {
+              return !(Ipv6Address::ConvertFrom (a->GetEidAddress ()).CombinePrefix (
+                         a->GetIpv6Prefix ())
+                       < Ipv6Address::ConvertFrom (b->GetEidAddress ()).CombinePrefix (
+                         a->GetIpv6Prefix ()));
+            }
+          else if (a->GetIpv6Prefix ().IsEqual (Ipv6Prefix ()))
+            {
+              return !(Ipv6Address::ConvertFrom (a->GetEidAddress ()).CombinePrefix (
+                         b->GetIpv6Prefix ())
+                       < Ipv6Address::ConvertFrom (b->GetEidAddress ()).CombinePrefix (
+                         b->GetIpv6Prefix ()));
+            }
+          else
+            {
+              if (Ipv6Address::ConvertFrom (a->GetEidAddress ()).CombinePrefix (
+                    a->GetIpv6Prefix ())
+                  < Ipv6Address::ConvertFrom (b->GetEidAddress ()).CombinePrefix (
+                    b->GetIpv6Prefix ()))
+                {
+                  return false;
+                }
+              else if (Ipv6Address::ConvertFrom (b->GetEidAddress ()).CombinePrefix (
+                         b->GetIpv6Prefix ())
+                       < Ipv6Address::ConvertFrom (a->GetEidAddress ()).CombinePrefix (
+                         a->GetIpv6Prefix ()))
+                {
+                  return true;
+                }
+              else
+                {
+                  return a->GetIpv6Prefix ().GetPrefixLength ()
+                         > b->GetIpv6Prefix ().GetPrefixLength ();
+                }
+            }
+        }
+      return false;
+    }
+  };
+
+//protected:
+//  // Add this pointer so that when cache insertion event occurs, xTR application can trigger invoked-SMR send procedure
+//  Ptr<LispEtrItrApplication> m_xTRApp;
+
 private:
   Ptr<LispOverIp> m_lispProtocol;
+
 
   uint32_t m_dbMiss;    // # failed lookups in db
   uint32_t m_dbHit;     // # successful lookups in db
@@ -83,75 +216,7 @@ private:
   uint32_t m_cacheHit;  // # successful lookups in cache
 };
 
-/**
- *
- */
-class Locators : public SimpleRefCount<Locators>
-{
-
-public:
-  Locators ();
-  virtual ~Locators ();
-
-  virtual Ptr<Locator> FindLocator (const Address &address) const = 0;
-  virtual void InsertLocator (Ptr<Locator> locator) = 0;
-  virtual Ptr<Locator> GetLocatorByIdx (uint8_t locIndex) = 0;
-  virtual uint8_t GetNLocators (void) const = 0;
-  virtual Ptr<Locator> SelectFirsValidRloc (void) const = 0;
-  virtual std::string Print (void) const = 0;
-
-  virtual int Serialize (uint8_t *buf) = 0;
-
-};
-
-/**
- *
- */
-class MapEntry : public SimpleRefCount<MapEntry>
-{
-
-  static const uint8_t MAX_RLOCS;
-
-public:
-  MapEntry ();
-  virtual ~MapEntry ();
-
-  virtual Ptr<Locator> FindLocator (const Address &address) const = 0;
-  virtual Ptr<Locator> RlocSelection (void) const = 0;
-  void InsertLocator (Ptr<Locator> locator);
-  Ptr<Locators> GetLocators (void);
-  void SetLocators (Ptr<Locators> locators);
-  bool IsUsingVersioning (void) const;
-  void SetIsUsingVersioning (bool is);
-  bool IsUsingLocStatusBits (void) const;
-  void SetIsUsingLocStatusBits (bool is);
-  bool IsNegative (void) const;
-  void setIsNegative (bool isNegative);
-  uint16_t GetVersionNumber (void) const;
-  uint32_t GetLocsStatusBits (void) const;
-  virtual std::string Print (void) const = 0;
-  void SetEidPrefix (Ptr<EndpointId> prefix);
-  Ptr<EndpointId> GetEidPrefix (void);
-
-protected:
-  // TODO add a possible lock to the entry
-  Ptr<EndpointId> m_eidPrefix;
-  Ptr<Locators> m_locators;
-
-private:
-  // Mapping flags
-  bool m_inDatabase;
-  bool m_isStatic; // Is manually added
-  bool m_isUsable;
-  bool m_isExpired;
-  bool m_isNegative;
-  bool m_useVersioning;
-  bool m_useLocatorStatusBits;
-
-  uint16_t m_mappingVersionNumber; // Version number of the mapping
-  uint32_t m_rlocsStatusBits;
-  // TODO investigate last time it has been used (to expunge cache)
-};
+std::ostream& operator<< (std::ostream &os, MapTables const &mapTable);
 
 } /* namespace ns3 */
 

@@ -27,7 +27,7 @@
 #include "ns3/socket-factory.h"
 #include "ns3/packet.h"
 #include "ns3/uinteger.h"
-#include "ns3/lisp-protocol.h"
+#include "ns3/lisp-over-ip.h"
 namespace ns3 {
 
 NS_LOG_COMPONENT_DEFINE ("MapResolver");
@@ -40,7 +40,7 @@ MapResolver::MapResolver ()
   m_mrClientSocket = 0;
   m_event = EventId ();
   m_sent = 0;
-  m_peerPort = LispProtocol::LISP_SIG_PORT;
+  m_peerPort = LispOverIp::LISP_SIG_PORT;
   m_count = 100;
   m_interval = Seconds (1.0);
 }
@@ -64,7 +64,7 @@ TypeId MapResolver::GetTypeId (void)
     .AddAttribute (
     "PeerPort",
     "The destination port of the packet",
-    UintegerValue (LispProtocol::LISP_SIG_PORT), MakeUintegerAccessor (&MapResolver::m_peerPort),
+    UintegerValue (LispOverIp::LISP_SIG_PORT), MakeUintegerAccessor (&MapResolver::m_peerPort),
     MakeUintegerChecker<uint16_t> ())
     .AddAttribute (
     "Interval", "The time to wait between packets",

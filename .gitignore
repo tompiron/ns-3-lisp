@@ -1,40 +1,42 @@
-# Object files
+*.diff
+*.orig
+*.patch
+*.rej
+
 *.o
-# script
-import.sh
-# Vi(m) swap files
-.*.swp
+*.pyc
+*.pyo
 
-# CScope file
-cscope.out
-
-# Compiled executable
-lispd
-
-# Local configuration file
-lispd.conf
-
-#temp kate files
-*~
-
-#kdev
-*.kdev4
-
-# so files
-*.so
-
-#
-*.png
-*.pdf
-*.dia
-*.seqdiag
+*.cwnd
+*.dat
+*.log
+*.mob
 *.pcap
-*.out
+*.plt
+*.routes
+*.tr
+[D|U]l[A-Z][a-z]*Stats.txt
+seventh-packet-byte-count.png
 
-# 
+\#*#
+~*
+
+testpy-output
+
+bindings/python/pybindgen/
+
+ms_print.*
+massif.*
+coverity
+TAGS
+
+.lock-waf_*_build
+.waf*
+
+build-dir/
 build/
-testpy-output/
-waf-tools/
 
-/Debug/
 
+.cproject
+.settings
+.project

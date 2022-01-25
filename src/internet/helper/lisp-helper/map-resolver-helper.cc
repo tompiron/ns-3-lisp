@@ -18,11 +18,13 @@
  * Author: Lionel Agbodjan <lionel.agbodjan@gmail.com>
  */
 #include "map-resolver-helper.h"
-#include "ns3/map-resolver-client.h"
+//#include "ns3/map-resolver-client.h"
 #include "ns3/map-resolver-ddt.h"
 #include "ns3/uinteger.h"
 #include "ns3/names.h"
 #include "ns3/lisp-protocol.h"
+#include "ns3/lisp-over-ip.h"
+
 namespace ns3 {
 
 MapResolverDdtHelper::MapResolverDdtHelper ()
@@ -66,7 +68,8 @@ MapResolverDdtHelper::Install (NodeContainer c) const
 
 Ptr<Application> MapResolverDdtHelper::InstallPriv (Ptr<Node> node) const
 {
-
+  Ptr<LispOverIp> lisp = node->GetObject<LispOverIp>();
+  NS_ASSERT_MSG (lisp != 0, "a MR must have one LispOverIp object! It is a lisp-speaking device!");
   Ptr<MapResolverDdt> app = m_factory.Create<MapResolverDdt> ();
   app->SetMapServerAddress (m_mapServerAddress);
   node->AddApplication (app);

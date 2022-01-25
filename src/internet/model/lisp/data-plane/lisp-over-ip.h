@@ -24,6 +24,10 @@
 #include "ns3/packet.h"
 #include "ns3/ptr.h"
 #include "lisp-protocol.h"
+#include "lisp-header.h"
+#include "locator.h"
+#include "rloc-metrics.h"
+#include "endpoint-id.h"
 #include "map-tables.h"
 #include "ns3/object.h"
 #include "mapping-socket-address.h"
@@ -51,6 +55,35 @@ class LispMappingSocket;
 class LispOverIp : public Object
 {
 public:
+  static const uint8_t PROT_NUMBER; //!< protocol number (0x)
+  static const uint16_t LISP_DATA_PORT; //!< LISP data operations port
+  static const uint16_t LISP_SIG_PORT; //!< LISP control operations port
+  static const uint16_t LISP_MAX_RLOC_PRIO; //!< LISP RLOC maximum priority
+  static const uint16_t MAX_VERSION_NUM; //!< LISP maximum version number
+  static const uint16_t WRAP_VERSION_NUM;
+  /**
+   * The following constant cannot be used as a Map-Version number.
+   * It indicates that no Map-Version number is assigned to the
+   * EID-TO-RLOC mapping
+   */
+  static const uint8_t NULL_VERSION_NUM;
+  /**
+   * This enum indicates what to do when there is no
+   * entry in the cache for the source EID of a packet.
+   */
+  enum EtrState
+  {
+    LISP_ETR_STANDARD = 1,   //!< We don't do nothing
+    /**
+     * A notification is sent to the control plane and
+     * the packet is forwarded.
+     */
+    LISP_ETR_NOTIFY = 2,
+    /**
+     * A notification is sent and the packet is dropped.
+     */
+    LISP_ETR_SECURE = 3
+  };
   /**
    * \struct address_compare
    *
@@ -78,6 +111,70 @@ public:
    * \return The object TypeID.
    */
   static TypeId GetTypeId (void);
+
+
+  /**
+   * This static method prepends a newly built LISP header to
+   * the packet given as an argument.
+   *
+   * \param packet The packet to which the LISP header must be prepended
+   * \param localMapEntry The local Map entry (from the LISP database)
+   * \param remoteMapEntry The remote Map entry (from the LISP Cache)
+   * \param sourceRloc The source locator (in the outer IP header)
+   * \param destRloc The destination locator (in the outer IP header)
+   * \return The packet given as an argument with the LISP header
+   *            prepended.
+   */
+  static Ptr<Packet> PrependLispHeader (Ptr<Packet> packet, Ptr<const MapEntry>
+                                        localMapEntry, Ptr<const MapEntry> remoteMapEntry, Ptr<Locator> sourceRloc,
+                                        Ptr<Locator> destRloc);
+
+
+  /**
+   * This static method checks if the LISP header of a received packet
+   * is formated as expected.
+   * \param header The LISP header of the received packet
+   * \param localMapEntry The Local map entry (on the ETR LISP Database)
+   * \param remoteMapEntry The remote map entry (in the ETR LISP Cache)
+   * \param srcRloc The source Locator
+   * \param destRloc The destination Locator
+   * \param lispOverIp A pointer to the LISP protocol implementation
+   *
+   * \return True if the LISP header is well formated, false otherwise.
+   */
+  static bool CheckLispHeader (const LispHeader &header, Ptr<const MapEntry>
+                               localMapEntry, Ptr<const MapEntry> remoteMapEntry, Ptr<Locator> srcRloc,
+                               Ptr<Locator> destRloc, Ptr<LispOverIp> lispOverIp);
+
+  /**
+   * The goal of this method is to select the source UDP port for the
+   * LISP packet.
+   *
+   * \param packet The LISP packet
+   *
+   * \return the selected source UDP port.
+   */
+  static uint16_t GetLispSrcPort (Ptr<const Packet> packet);
+
+  /**
+   * This method determine if the Mapping version number 2 (vnum2)
+   *  is greater (newer) than the Mapping version number 1 (vnum1). It
+   *  uses the following algorithm:
+   *
+   * 1. V1 = V2 : The Map-Version numbers are the same.
+   * 2. V2 > V1 : if and only if
+   * V2 > V1 AND (V2 - V1) <= 2**(N-1)
+   * OR
+   * V1 > V2 AND (V1 - V2) > 2**(N-1)
+   * 3. V1 > V2 : otherwise
+   *
+   * \param vnum1 The Mapping version number 2
+   * \param vnum2 The Mapping version number 1
+   *
+   * \return True if the mapping version number 2 is newer than the mapping
+   * version number 1. False otherwise.
+   */
+  static bool IsMapVersionNumberNewer (uint16_t vnum2, uint16_t vnum1);
 
   /**
    * \brief Constructor
@@ -261,12 +358,23 @@ public:
    */
   Ptr<MapTables> GetMapTablesV6 (void) const;
 
+  /**
+   * \brief Print the Ipv6 Map Table content.
+   * \param The MapTables for IPv6 addresses.
+   */
+  void Print (std::ostream &os) const;
+
+
+
+
+
 protected:
   // Note: Each entry of the table can contain Ipv6 or Ipv4 RLOC addresses
   Ptr<MapTables> m_mapTablesIpv4;       //!< Map table for Ipv4 EID prefixes
   Ptr<MapTables> m_mapTablesIpv6;       //!< Map table for Ipv6 EID prefixes
   Ptr<LispStatistics> m_statisticsForIpv4;
   Ptr<LispStatistics> m_statisticsForIpv6;
+  //TODO: Never understand why we need such a m_rlocsList. How and where use it?
   std::set<Address> m_rlocsList;        //!< The list of all RLOCs addresses of the system (needed to prevent encapsulation)
 
 

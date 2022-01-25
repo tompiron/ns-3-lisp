@@ -104,7 +104,7 @@ def configure(conf):
 
 def build(bld):
     # bridge and mpi dependencies are due to global routing
-    obj = bld.create_ns3_module('internet', ['bridge', 'mpi', 'traffic-control', 'network', 'core'])
+    obj = bld.create_ns3_module('internet', ['bridge', 'mpi', 'traffic-control', 'network', 'core', 'virtual-net-device'])
     obj.source = [
         'model/ip-l4-protocol.cc',
         'model/udp-header.cc',
@@ -228,6 +228,7 @@ def build(bld):
         'model/lisp/data-plane/lisp-mapping-socket.cc',
         'model/lisp/data-plane/lisp-mapping-socket-factory.cc',
         'model/lisp/data-plane/mapping-socket-msg.cc',
+        'model/lisp/data-plane/mapping-socket-msg-header.cc',
         'model/lisp/data-plane/mapping-socket-address.cc',
         'model/lisp/data-plane/lisp-over-ip.cc',
         'model/lisp/data-plane/lisp-over-ipv4.cc',
@@ -236,7 +237,14 @@ def build(bld):
         'model/lisp/data-plane/lisp-over-ipv6-impl.cc',
         'model/lisp/data-plane/lisp-protocol.cc',
         'model/lisp/data-plane/map-tables.cc',
+        'model/lisp/data-plane/map-entry.cc',
         'model/lisp/data-plane/simple-map-tables.cc',
+        'model/lisp/data-plane/locators-impl.cc',
+        'model/lisp/data-plane/locators.cc',
+        'model/lisp/data-plane/locator.cc',
+        'model/lisp/data-plane/rloc-metrics.cc',
+        'model/lisp/data-plane/endpoint-id.cc',
+        'model/lisp/data-plane/tun-net-device.cc',             
         # lisp control plane
         'model/lisp/control-plane/map-resolver.cc',
         'model/lisp/control-plane/lisp-etr-itr-application.cc',
@@ -249,12 +257,14 @@ def build(bld):
         'model/lisp/control-plane/map-referral-msg.cc',
         'model/lisp/control-plane/map-register-msg.cc',
         'model/lisp/control-plane/map-reply-msg.cc',
+        'model/lisp/control-plane/map-reply-record.cc',
         'model/lisp/control-plane/map-request-msg.cc',
+        'model/lisp/control-plane/map-request-record.cc',
         # lisp helper
         'helper/lisp-helper/lisp-helper.cc',
         'helper/lisp-helper/map-resolver-helper.cc',
         'helper/lisp-helper/map-server-helper.cc',
-        'helper/lisp-helper/lisp-etr-itr-app-helper.cc',
+        'helper/lisp-helper/lisp-etr-itr-app-helper.cc'
         ]
 
     internet_test = bld.create_ns3_module_test_library('internet')
@@ -316,8 +326,9 @@ def build(bld):
         'test/tcp-endpoint-bug2211.cc',
         'test/tcp-datasentcb-test.cc',
         'test/ipv4-rip-test.cc',
-        # lisp
+         # lisp
         'test/lisp-test/lisp-test-suite.cc',
+        
         ]
     privateheaders = bld(features='ns3privateheader')
     privateheaders.module = 'internet'
@@ -436,6 +447,7 @@ def build(bld):
         'model/lisp/data-plane/lisp-mapping-socket.h',
         'model/lisp/data-plane/lisp-mapping-socket-factory.h',
         'model/lisp/data-plane/mapping-socket-msg.h',
+        'model/lisp/data-plane/mapping-socket-msg-header.h',
         'model/lisp/data-plane/mapping-socket-address.h',
         'model/lisp/data-plane/lisp-over-ip.h',
         'model/lisp/data-plane/lisp-over-ipv4.h',
@@ -444,7 +456,14 @@ def build(bld):
         'model/lisp/data-plane/lisp-over-ipv6-impl.h',
         'model/lisp/data-plane/lisp-protocol.h',
         'model/lisp/data-plane/map-tables.h',
+        'model/lisp/data-plane/map-entry.h',
         'model/lisp/data-plane/simple-map-tables.h',
+        'model/lisp/data-plane/locators-impl.h',
+        'model/lisp/data-plane/locators.h',
+        'model/lisp/data-plane/locator.h',
+        'model/lisp/data-plane/rloc-metrics.h',
+        'model/lisp/data-plane/endpoint-id.h',
+        'model/lisp/data-plane/tun-net-device.h',   
         # lisp control plane
         'model/lisp/control-plane/map-resolver.h',
         'model/lisp/control-plane/lisp-etr-itr-application.h',
@@ -457,12 +476,14 @@ def build(bld):
         'model/lisp/control-plane/map-referral-msg.h',
         'model/lisp/control-plane/map-register-msg.h',
         'model/lisp/control-plane/map-reply-msg.h',
+        'model/lisp/control-plane/map-reply-record.h',
         'model/lisp/control-plane/map-request-msg.h',
+        'model/lisp/control-plane/map-request-record.h',
         # lisp helper
         'helper/lisp-helper/lisp-helper.h',
         'helper/lisp-helper/map-resolver-helper.h',
         'helper/lisp-helper/map-server-helper.h',
-        'helper/lisp-helper/lisp-etr-itr-app-helper.h',
+        'helper/lisp-helper/lisp-etr-itr-app-helper.h'
        ]
 
     if bld.env['NSC_ENABLED']:

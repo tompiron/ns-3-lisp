@@ -87,6 +87,7 @@ void LispOverIpv4Impl::LispOutput (Ptr<Packet> packet, Ipv4Header const &innerHe
 
   // Select a destination Rloc if no drop packet
   destLocator = SelectDestinationRloc (remoteMapping);
+  NS_LOG_DEBUG ("Destination RLOC address: " << destLocator->GetRlocAddress ());
 
   if (destLocator == 0)
     {
@@ -161,10 +162,10 @@ void LispOverIpv4Impl::LispOutput (Ptr<Packet> packet, Ipv4Header const &innerHe
   packet->AddHeader (innerHeader);
 
   // compute src port based on inner header(Follow algo get_lisp_srcport)
-  udpSrcPort = LispProtocol::GetLispSrcPort (packet);
+  udpSrcPort = LispOverIp::GetLispSrcPort (packet);
 
   // add LISP header to the packet (with inner IP header)
-  packet = LispProtocol::PrependLispHeader (packet, localMapping, remoteMapping, srcLocator, destLocator);
+  packet = PrependLispHeader (packet, localMapping, remoteMapping, srcLocator, destLocator);
 
   if (!packet)
     {
@@ -199,6 +200,7 @@ void LispOverIpv4Impl::LispOutput (Ptr<Packet> packet, Ipv4Header const &innerHe
       // we just add the Lisp header and the UDP header
       NS_LOG_LOGIC ("Encapsulating packet");
       packet = LispEncapsulate (packet, udpLength, udpSrcPort);
+      NS_ASSERT (m_statisticsForIpv4 != 0);
       m_statisticsForIpv4->IncOutputPackets ();
       // finally we have a packet that we can re-inject in IP
       Ptr<Ipv4> ipv4 = GetNode ()->GetObject<Ipv4> ();
@@ -256,35 +258,61 @@ void LispOverIpv4Impl::LispInput (Ptr<Packet> packet, Ipv4Header const &outerHea
    * We know that the first header is an ip header
    * check the mappings for the src and dest EIDs
    * check in the case of Ipv6 and Ipv4 addresses (lisp_check_ip_mappings)
+   *
+   * IMPORTANT: But it is also possible that the first header is an ip header
+   * of maq request. Lionel's implementation has not considered that the inner header
+   * is a lisp data plan message?
    */
   while (metadataIterator.HasNext ())
     {
       item = metadataIterator.Next ();
       if (!(item.tid.GetName ().compare (Ipv4Header::GetTypeId ().GetName ())))
         {
-          Ptr<Node> node;
           isMappingForPacket = LispOverIp::m_mapTablesIpv4->
             IsMapForReceivedPacket (packet, lispHeader, static_cast<Address>
                                     (outerHeader.GetSource ()),
                                     static_cast<Address> (outerHeader.GetDestination ()));
 
-          if (isMappingForPacket)
+          bool isControlPlanMsg = false;
+          // if inner UDP of innerIpv4header is at port 4342. we should
+          // use ipv4->Receive() to send this packet to itself.
+          // that's why whether isMappingForPacket is true, we also retrieve @ip and port
+          Ptr<Node> node = GetNode ();
+          packet->RemoveHeader (innerIpv4Header);
+          if (innerIpv4Header.GetProtocol () == UdpL4Protocol::PROT_NUMBER)
             {
-              Ptr<Node> node = GetNode ();
-              packet->RemoveHeader (innerIpv4Header);
-              innerIpv4Header.SetTtl (outerHeader.GetTtl ());
-              Address from = static_cast<Address> (innerIpv4Header.GetSource ());
-              Address to = static_cast<Address> (innerIpv4Header.GetDestination ());
-              innerIpv4Header.EnableChecksum ();
-              packet->AddHeader (innerIpv4Header);
+              NS_LOG_DEBUG ("Next Header of Inner IP is still UDP, let's see the port");
+              packet->RemoveHeader (udpHeader);
+              if (udpHeader.GetDestinationPort () == LispOverIp::LISP_SIG_PORT)
+                {
+                  NS_LOG_DEBUG ("UDP on port:" << unsigned(udpHeader.GetDestinationPort ()) << "->LISP Control Plan Message!");
+                  isControlPlanMsg = true;
+                }
+            }
+          innerIpv4Header.SetTtl (outerHeader.GetTtl ());
+          Address from = static_cast<Address> (innerIpv4Header.GetSource ());
+          Address to = static_cast<Address> (innerIpv4Header.GetDestination ());
+          innerIpv4Header.EnableChecksum ();
+          // Add UDP&IP header to the packet
+          packet->AddHeader (udpHeader);
+          packet->AddHeader (innerIpv4Header);
+
+          // Either find mapping for inner ip header or find the inner message is control message
+          // use ip receive procedure to forward packet
+          if (isMappingForPacket or isControlPlanMsg)
+            {
               Ptr<Ipv4L3Protocol> ipv4 = (node->GetObject<Ipv4L3Protocol> ());
               // put it back in ip Receive ()
+              //Attention: it's the method LispOverIpv4::RecordReceiveParams that
+              //retrieve m_currentDevice values!!! This method is called in
+              //Ipv4L3Protocol::Received() method!
               ipv4->Receive (m_currentDevice, packet, m_ipProtocol, from, to, m_currentPacketType);
               NS_LOG_DEBUG ("Re-inject the packet in receive to forward it to: " << innerIpv4Header.GetDestination ());
             }
           else
             {
               // TODO drop and log
+              NS_LOG_ERROR ("Mapping check failed during local deliver! Attention if this is cause by double encapsulation!");
             }
           return;
         }
@@ -329,12 +357,15 @@ LispOverIpv4::MapStatus LispOverIpv4Impl::IsMapForEncapsulation (Ipv4Header cons
     {
       // Check if the prefix of the source address is in the db
       srcMapEntry = LispOverIp::DatabaseLookup (static_cast<Address> (innerHeader.GetSource ()));
+      NS_LOG_DEBUG ("found srcMapEntry: \n" << srcMapEntry->GetLocators ()->Print ());
     }
 
   // also check if it is the same address range (mask)
   if (srcMapEntry == 0)
     {
       NS_LOG_DEBUG ("[MapForEncap] Source map entry does not exist");
+      Ptr<MapTables> mapTable = LispOverIp::GetMapTablesV4 ();
+      //NS_LOG_DEBUG ("Current Database content: \n"<<*mapTable);
       return LispOverIpv4::No_Mapping;
     }
 
@@ -359,7 +390,8 @@ LispOverIpv4::MapStatus LispOverIpv4Impl::IsMapForEncapsulation (Ipv4Header cons
   if (destMapEntry == 0)
     {
       NS_LOG_DEBUG ("[MapForEncap] SOURCE map entry exists but DEST map entry does not !");
-
+      Ptr<LispOverIp> lisp = GetNode ()->GetObject<LispOverIp>();
+      //NS_LOG_INFO("XXX:"<<*lisp->GetMapTablesV4());
       MappingSocketMsgHeader sockMsgHdr;
       sockMsgHdr.SetMapAddresses ((int) sockMsgHdr.GetMapAddresses () | static_cast<int> (LispMappingSocket::MAPA_EID));
       sockMsgHdr.SetMapType (static_cast<uint8_t> (LispMappingSocket::MAPM_MISS));
@@ -372,8 +404,8 @@ LispOverIpv4::MapStatus LispOverIpv4Impl::IsMapForEncapsulation (Ipv4Header cons
       uint8_t buf[64];
       mapSockMsg->Serialize (buf);
       Ptr<Packet> packet = Create<Packet> (buf, 100);
-
       NS_LOG_DEBUG ("Send Notification to all LISP apps");
+
       SendNotifyMessage (static_cast<uint8_t> (LispMappingSocket::MAPM_MISS), packet, sockMsgHdr, 0);
       return LispOverIpv4::No_Mapping;
     }
@@ -406,7 +438,6 @@ bool LispOverIpv4Impl::NeedEncapsulation (Ipv4Header const &ipHeader, Ipv4Mask m
 
   // Use dblookup to find the list of rlocs (if mapping exists)
   Ptr<MapEntry> eidMapEntry = LispOverIp::DatabaseLookup (static_cast<Address> (ipHeader.GetSource ()));
-
   // check if it has the same mask as the dest EID, if yes no need
   // to encap, if no encap
   if (eidMapEntry)
@@ -414,8 +445,10 @@ bool LispOverIpv4Impl::NeedEncapsulation (Ipv4Header const &ipHeader, Ipv4Mask m
       // Use check if addresses match in their mask
       if (mask.IsMatch (ipHeader.GetSource (), ipHeader.GetDestination ()))
         {
+          NS_LOG_DEBUG ("Why no mapping entry found for EID:" << eidMapEntry->GetEidPrefix ()->GetEidAddress ());
           return false;
         }
+      NS_LOG_DEBUG ("The found EID-RLOC mapping is: EID(" << eidMapEntry->GetEidPrefix ()->GetEidAddress () << ") --> RLOC\n(" << eidMapEntry->GetLocators ()->Print () << ")");
       return true;
     }
 
@@ -445,7 +478,7 @@ bool LispOverIpv4Impl::NeedDecapsulation (Ptr<const Packet> packet, Ipv4Header c
     {
       NS_LOG_DEBUG ("Protocol beneath IP is really UDP");
       p->RemoveHeader (udpHeader);
-      if (udpHeader.GetDestinationPort () == LispProtocol::LISP_DATA_PORT)
+      if (udpHeader.GetDestinationPort () == LispOverIp::LISP_DATA_PORT)
         {
           return true;
         }
@@ -459,7 +492,7 @@ Ptr<Packet> LispOverIpv4Impl::LispEncapsulate (Ptr<Packet> packet, uint16_t udpL
   // add UDP header with src ports + dest port (4341 for Data or 4342 for Control)
   UdpHeader udpHeader;
   // UDP header
-  udpHeader.SetDestinationPort (LispProtocol::LISP_DATA_PORT);
+  udpHeader.SetDestinationPort (LispOverIp::LISP_DATA_PORT);
   udpHeader.SetSourcePort (udpSrcPort);
   udpHeader.ForceChecksum (0); // set checksum as 0 (RFC 6830)
   // the ip payload size include data + header sizes

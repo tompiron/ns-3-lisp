@@ -23,7 +23,7 @@
 #include "map-resolver.h"
 #include "ns3/map-tables.h"
 #include "ns3/lisp-control-msg.h"
-#include "ns3/lisp-protocol.h"
+#include "ns3/lisp-over-ip.h"
 #include "ns3/map-referral-msg.h"
 #include "ns3/map-request-msg.h"
 
@@ -45,6 +45,7 @@ public:
   GetTypeId (void);
 
   void SetMapServerAddress (Address mapServer);
+
 private:
   virtual void StartApplication (void);
 

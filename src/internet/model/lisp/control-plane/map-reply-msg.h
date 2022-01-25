@@ -20,71 +20,12 @@
 #ifndef SRC_INTERNET_MODEL_LISP_CONTROL_PLANE_MAP_REPLY_MSG_H_
 #define SRC_INTERNET_MODEL_LISP_CONTROL_PLANE_MAP_REPLY_MSG_H_
 
-#include "lisp-control-msg.h"
+#include "ns3/lisp-control-msg.h"
+#include "ns3/map-reply-record.h"
 #include "ns3/map-tables.h"
-#include "map-request-msg.h"
+#include "ns3/map-request-msg.h"
 
 namespace ns3 {
-
-class MapReplyRecord : public SimpleRefCount<MapReplyRecord>
-{
-public:
-  enum ACT
-  {
-    NoAction = 0,
-    NativelyForward,
-    SendMapRequest,
-    Drop,
-  };
-  MapReplyRecord ();
-  virtual
-  ~MapReplyRecord ();
-
-  void SetRecordTtl (uint32_t recordTtl);
-  uint32_t GetRecordTtl (void);
-
-  void SetLocatorCount (uint8_t locCount);
-  uint8_t GetLocatorCount (void);
-
-  void SetEidMaskLength (uint8_t eidMaskLength);
-  uint8_t GetEidMaskLength (void);
-
-  void SetAct (ACT act);
-  ACT GetAct (void);
-
-  void SetA (uint8_t a);
-  uint8_t GetA (void);
-
-  void SetMapVersionNumber (uint16_t versionNumber);
-  uint16_t GetMapVersionNumber (void);
-
-  LispControlMsg::AddressFamily GetEidAfi (void);
-  void SetEidAfi (LispControlMsg::AddressFamily afi);
-
-  void SetLocators (Ptr<Locators> locators);
-  Ptr<Locators> GetLocators (void);
-
-  void SetEidPrefix (Address eidPrefix);
-  Address GetEidPrefix (void);
-
-  void Serialize (uint8_t *buf);
-  static Ptr<MapReplyRecord> Deserialize (uint8_t *buf);
-
-  void Print (std::ostream& os);
-
-  static const uint32_t m_defaultRecordTtl;
-private:
-  uint32_t m_recordTtl;
-  uint8_t m_locatorCount;
-  uint8_t m_eidMaskLength;
-  ACT m_act;
-  uint8_t m_A : 1;
-  uint8_t m_reserved : 7;
-  uint16_t m_mapVersionNumber;
-  LispControlMsg::AddressFamily m_eidPrefixAfi;
-  Address m_eidPrefix;
-  Ptr<Locators> m_locators;
-};
 
 class MapReplyMsg : public LispControlMsg
 {
@@ -117,6 +58,7 @@ public:
 
   void Print (std::ostream& os) const;
   static LispControlMsg::LispControlMsgType GetMsgType (void);
+
 private:
   Ptr<MapReplyRecord> m_record;
   uint8_t m_recordCount;
@@ -127,6 +69,8 @@ private:
   uint64_t m_nonce; //!< Nonce echoed from the map request
 
 };
+
+std::ostream& operator<< (std::ostream& os, MapReplyMsg const& mapReply);
 
 } /* namespace ns3 */
 

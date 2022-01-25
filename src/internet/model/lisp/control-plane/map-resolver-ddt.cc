@@ -69,7 +69,7 @@ void MapResolverDdt::StartApplication (void)
     {
       TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
       m_mrClientSocket = Socket::CreateSocket (GetNode (), tid);
-      InetSocketAddress local = InetSocketAddress (Ipv4Address::GetAny (), LispProtocol::LISP_SIG_PORT);
+      InetSocketAddress local = InetSocketAddress (Ipv4Address::GetAny (), LispOverIp::LISP_SIG_PORT);
       m_mrClientSocket->Bind (local);
     }
 
@@ -77,7 +77,7 @@ void MapResolverDdt::StartApplication (void)
     {
       TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
       m_mrClientSocket6 = Socket::CreateSocket (GetNode (), tid);
-      Inet6SocketAddress local6 = Inet6SocketAddress (Ipv6Address::GetAny (), LispProtocol::LISP_SIG_PORT);
+      Inet6SocketAddress local6 = Inet6SocketAddress (Ipv6Address::GetAny (), LispOverIp::LISP_SIG_PORT);
       m_mrClientSocket6->Bind (local6);
     }
   m_mrClientSocket6->SetRecvCallback (MakeCallback (&MapResolverDdt::HandleReadFromClient, this));
@@ -104,10 +104,11 @@ void MapResolverDdt::HandleReadFromClient (Ptr<Socket> socket)
         }
       uint8_t buf[packet->GetSize ()];
       packet->CopyData (buf, packet->GetSize ());
+      uint8_t msg_type = buf[0] >> 4;
 
-      if (buf[0] == static_cast<uint8_t> (MapRequestMsg::GetMsgType ()))
+      if (msg_type == static_cast<uint8_t> (MapRequestMsg::GetMsgType ()))
         {
-          NS_LOG_DEBUG ("GET map request on map resolver");
+          NS_LOG_DEBUG ("GET map request on map resolver and Forward it to Map Server!");
           Ptr<MapRequestMsg> mapReqMsg = MapRequestMsg::Deserialize (buf);
           SendMapRequest (mapReqMsg);
         }

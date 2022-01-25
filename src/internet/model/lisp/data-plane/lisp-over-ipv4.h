@@ -23,8 +23,6 @@
 #include "ns3/ptr.h"
 #include "ns3/node.h"
 #include "ns3/packet.h"
-#include "lisp-protocol.h"
-#include "map-tables.h"
 #include "lisp-over-ip.h"
 
 namespace ns3 {
@@ -33,6 +31,7 @@ class Ipv4Header;
 class Ipv4Route;
 class MapTables;
 class MapEntry;
+
 /**
  * \class LispOverIpv4
  * \brief Abstract class for LISP data plane over the IPv4 protocol.
