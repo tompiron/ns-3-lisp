@@ -34,6 +34,8 @@
 using namespace ns3;
 
 /**
+ * \ingroup aodv-examples
+ * \ingroup examples
  * \brief Test script.
  * 
  * This script creates 1-dimensional grid topology and then ping last node from the first one:
@@ -46,11 +48,19 @@ class AodvExample
 {
 public:
   AodvExample ();
-  /// Configure script parameters, \return true on successful configuration
+  /**
+   * \brief Configure script parameters
+   * \param argc is the command line argument count
+   * \param argv is the command line arguments
+   * \return true on successful configuration
+  */
   bool Configure (int argc, char **argv);
   /// Run simulation
   void Run ();
-  /// Report results
+  /**
+   * Report results
+   * \param os the output stream
+   */
   void Report (std::ostream & os);
 
 private:
@@ -68,14 +78,21 @@ private:
   bool printRoutes;
 
   // network
+  /// nodes used in the example
   NodeContainer nodes;
+  /// devices used in the example
   NetDeviceContainer devices;
+  /// interfaces used in the example
   Ipv4InterfaceContainer interfaces;
 
 private:
+  /// Create the nodes
   void CreateNodes ();
+  /// Create the devices
   void CreateDevices ();
+  /// Create the network
   void InstallInternetStack ();
+  /// Create the simulation applications
   void InstallApplications ();
 };
 
@@ -168,12 +185,12 @@ AodvExample::CreateNodes ()
 void
 AodvExample::CreateDevices ()
 {
-  NqosWifiMacHelper wifiMac = NqosWifiMacHelper::Default ();
+  WifiMacHelper wifiMac;
   wifiMac.SetType ("ns3::AdhocWifiMac");
   YansWifiPhyHelper wifiPhy = YansWifiPhyHelper::Default ();
   YansWifiChannelHelper wifiChannel = YansWifiChannelHelper::Default ();
   wifiPhy.SetChannel (wifiChannel.Create ());
-  WifiHelper wifi = WifiHelper::Default ();
+  WifiHelper wifi;
   wifi.SetRemoteStationManager ("ns3::ConstantRateWifiManager", "DataMode", StringValue ("OfdmRate6Mbps"), "RtsCtsThreshold", UintegerValue (0));
   devices = wifi.Install (wifiPhy, wifiMac, nodes); 
 

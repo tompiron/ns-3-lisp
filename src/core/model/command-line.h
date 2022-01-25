@@ -29,7 +29,7 @@
 /**
  * \file
  * \ingroup commandline
- * CommandLine class declaration.
+ * ns3::CommandLine declaration.
  */
 
 namespace ns3 {
@@ -197,6 +197,10 @@ namespace ns3 {
  *       exit (-1);
  *     }
  * \endcode
+ *
+ * \bugid{2461} Treat non-option arguments like traditional \c getopt(), by
+ * permuting non-option arguments to the end and providing a query function
+ * for the equivalent of \c optind.
  */
 class CommandLine
 {
@@ -391,7 +395,10 @@ private:
    */  
   static bool HandleAttribute (const std::string name, const std::string value);
 
-  /** Handler for \c \-\-PrintGlobals:  print all global variables and values */
+  /**
+   * Handler for \c \-\-PrintGlobals:  print all global variables and values
+   * \param [in,out] os The output stream to print on.
+   */
   void PrintGlobals (std::ostream &os) const;
   /**
    * Handler for \c \-\-PrintAttributes:  print the attributes for a given type.

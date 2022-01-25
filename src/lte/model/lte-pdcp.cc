@@ -30,9 +30,15 @@ namespace ns3 {
 
 NS_LOG_COMPONENT_DEFINE ("LtePdcp");
 
+/// LtePdcpSpecificLteRlcSapUser class
 class LtePdcpSpecificLteRlcSapUser : public LteRlcSapUser
 {
 public:
+  /**
+   * Constructor
+   *
+   * \param pdcp PDCP
+   */
   LtePdcpSpecificLteRlcSapUser (LtePdcp* pdcp);
 
   // Interface provided to lower RLC entity (implemented from LteRlcSapUser)
@@ -40,7 +46,7 @@ public:
 
 private:
   LtePdcpSpecificLteRlcSapUser ();
-  LtePdcp* m_pdcp;
+  LtePdcp* m_pdcp; ///< the PDCP
 };
 
 LtePdcpSpecificLteRlcSapUser::LtePdcpSpecificLteRlcSapUser (LtePdcp* pdcp)
@@ -188,7 +194,7 @@ LtePdcp::DoTransmitPdcpSdu (Ptr<Packet> p)
 
   // Sender timestamp
   PdcpTag pdcpTag (Simulator::Now ());
-  p->AddByteTag (pdcpTag);
+  p->AddPacketTag (pdcpTag);
   m_txPdu (m_rnti, m_lcid, p->GetSize ());
 
   LteRlcSapProvider::TransmitPdcpPduParameters params;
@@ -207,10 +213,9 @@ LtePdcp::DoReceivePdu (Ptr<Packet> p)
   // Receiver timestamp
   PdcpTag pdcpTag;
   Time delay;
-  if (p->FindFirstMatchingByteTag (pdcpTag))
-    {
-      delay = Simulator::Now() - pdcpTag.GetSenderTimestamp ();
-    }
+  NS_ASSERT_MSG (p->PeekPacketTag (pdcpTag), "PdcpTag is missing");
+  p->RemovePacketTag (pdcpTag);
+  delay = Simulator::Now() - pdcpTag.GetSenderTimestamp ();
   m_rxPdu(m_rnti, m_lcid, p->GetSize (), delay.GetNanoSeconds ());
 
   LtePdcpHeader pdcpHeader;

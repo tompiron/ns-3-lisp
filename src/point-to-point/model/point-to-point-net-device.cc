@@ -25,6 +25,7 @@
 #include "ns3/trace-source-accessor.h"
 #include "ns3/uinteger.h"
 #include "ns3/pointer.h"
+#include "ns3/net-device-queue-interface.h"
 #include "point-to-point-net-device.h"
 #include "point-to-point-channel.h"
 #include "ppp-header.h"
@@ -76,7 +77,7 @@ PointToPointNetDevice::GetTypeId (void)
                    "A queue to use as the transmit queue in the device.",
                    PointerValue (),
                    MakePointerAccessor (&PointToPointNetDevice::m_queue),
-                   MakePointerChecker<Queue> ())
+                   MakePointerChecker<Queue<Packet> > ())
 
     //
     // Trace sources at the "top" of the net device, where packets transition
@@ -207,6 +208,40 @@ PointToPointNetDevice::ProcessHeader (Ptr<Packet> p, uint16_t& param)
 }
 
 void
+PointToPointNetDevice::DoInitialize (void)
+{
+  if (m_queueInterface)
+    {
+      NS_ASSERT_MSG (m_queue != 0, "A Queue object has not been attached to the device");
+
+      // connect the traced callbacks of m_queue to the static methods provided by
+      // the NetDeviceQueue class to support flow control and dynamic queue limits.
+      // This could not be done in NotifyNewAggregate because at that time we are
+      // not guaranteed that a queue has been attached to the netdevice
+      m_queueInterface->ConnectQueueTraces (m_queue, 0);
+    }
+
+  NetDevice::DoInitialize ();
+}
+
+void
+PointToPointNetDevice::NotifyNewAggregate (void)
+{
+  NS_LOG_FUNCTION (this);
+  if (m_queueInterface == 0)
+    {
+      Ptr<NetDeviceQueueInterface> ndqi = this->GetObject<NetDeviceQueueInterface> ();
+      //verify that it's a valid netdevice queue interface and that
+      //the netdevice queue interface was not set before
+      if (ndqi != 0)
+        {
+          m_queueInterface = ndqi;
+        }
+    }
+  NetDevice::NotifyNewAggregate ();
+}
+
+void
 PointToPointNetDevice::DoDispose ()
 {
   NS_LOG_FUNCTION (this);
@@ -214,6 +249,8 @@ PointToPointNetDevice::DoDispose ()
   m_channel = 0;
   m_receiveErrorModel = 0;
   m_currentPkt = 0;
+  m_queue = 0;
+  m_queueInterface = 0;
   NetDevice::DoDispose ();
 }
 
@@ -283,14 +320,12 @@ PointToPointNetDevice::TransmitComplete (void)
   Ptr<Packet> p = m_queue->Dequeue ();
   if (p == 0)
     {
-      //
-      // No packet was on the queue, so we just exit.
-      //
+      NS_LOG_LOGIC ("No pending packets in device queue after tx complete");
       return;
     }
 
   //
-  // Got another packet off of the queue, so start the transmit process agin.
+  // Got another packet off of the queue, so start the transmit process again.
   //
   m_snifferTrace (p);
   m_promiscSnifferTrace (p);
@@ -316,7 +351,7 @@ PointToPointNetDevice::Attach (Ptr<PointToPointChannel> ch)
 }
 
 void
-PointToPointNetDevice::SetQueue (Ptr<Queue> q)
+PointToPointNetDevice::SetQueue (Ptr<Queue<Packet> > q)
 {
   NS_LOG_FUNCTION (this << q);
   m_queue = q;
@@ -379,7 +414,7 @@ PointToPointNetDevice::Receive (Ptr<Packet> packet)
     }
 }
 
-Ptr<Queue>
+Ptr<Queue<Packet> >
 PointToPointNetDevice::GetQueue (void) const
 { 
   NS_LOG_FUNCTION (this);
@@ -545,12 +580,14 @@ PointToPointNetDevice::Send (
           packet = m_queue->Dequeue ();
           m_snifferTrace (packet);
           m_promiscSnifferTrace (packet);
-          return TransmitStart (packet);
+          bool ret = TransmitStart (packet);
+          return ret;
         }
       return true;
     }
 
   // Enqueue may fail (overflow)
+
   m_macTxDropTrace (packet);
   return false;
 }

@@ -16,6 +16,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+#include "ns3/command-line.h"
 #include "ns3/simulator.h"
 #include "ns3/realtime-simulator-impl.h"
 #include "ns3/nstime.h"
@@ -31,6 +32,7 @@
 
 /**
  * \file
+ * \ingroup core-examples
  * \ingroup scheduler
  * An example of scheduling events in a background thread.
  *
@@ -40,8 +42,11 @@
 
 using namespace ns3;
 
+
 NS_LOG_COMPONENT_DEFINE ("TestSync");
 
+namespace {
+  
 /** Check that the event functions run in the intended order. */
 bool gFirstRun = false;
 
@@ -97,7 +102,7 @@ FakeNetDevice::Doit3 (void)
       //
       // Exercise the realtime relative now path
       //
-      Simulator::ScheduleWithContext(0xffffffff, Seconds(0.0), MakeEvent (&inserted_function));
+      Simulator::ScheduleWithContext(Simulator::NO_CONTEXT, Seconds(0.0), MakeEvent (&inserted_function));
       usleep (1000);
     }
 }
@@ -142,9 +147,15 @@ test (void)
   Simulator::Destroy ();
 }
 
+}  // unnamed namespace
+
+
 int
 main (int argc, char *argv[])
 {
+  CommandLine cmd;
+  cmd.Parse (argc, argv);
+  
   while (true)
     {
       test ();

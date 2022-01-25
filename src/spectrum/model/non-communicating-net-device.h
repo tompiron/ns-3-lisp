@@ -36,7 +36,6 @@ namespace ns3 {
 class SpectrumChannel;
 class Channel;
 class SpectrumErrorModel;
-class Queue;
 
 
 
@@ -54,6 +53,10 @@ class Queue;
 class NonCommunicatingNetDevice : public NetDevice
 {
 public:
+  /**
+   * \brief Get the type ID.
+   * \return the object TypeId
+   */
   static TypeId GetTypeId (void);
 
   NonCommunicatingNetDevice ();
@@ -123,12 +126,10 @@ public:
 private:
   virtual void DoDispose (void);
 
-  Ptr<Node>    m_node;
-  Ptr<Channel> m_channel;
-
-  uint32_t m_ifIndex;
-
-  Ptr<Object> m_phy;
+  Ptr<Node>    m_node;    //!< node this NetDevice is associated to
+  Ptr<Channel> m_channel; //!< Channel used by the NetDevice
+  uint32_t m_ifIndex;     //!< Interface index
+  Ptr<Object> m_phy;      //!< Phy object
 };
 
 

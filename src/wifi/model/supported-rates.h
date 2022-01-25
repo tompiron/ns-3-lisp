@@ -21,10 +21,8 @@
 #ifndef SUPPORTED_RATES_H
 #define SUPPORTED_RATES_H
 
-#include <stdint.h>
-#include <ostream>
 #include "ns3/buffer.h"
-#include "ns3/wifi-information-element.h"
+#include "wifi-information-element.h"
 
 namespace ns3 {
 
@@ -54,11 +52,36 @@ public:
    */
   ExtendedSupportedRatesIE (SupportedRates *rates);
 
+  /**
+   * Set supported rates.
+   *
+   * \param rates the supported rates
+   */
   void SetSupportedRates (SupportedRates *rates);
 
+  /**
+   * Get element ID.
+   * \returns the wifi information element ID
+   */
   WifiInformationElementId ElementId () const;
+  /**
+   * Get information field size.
+   * \returns the information field size
+   */
   uint8_t GetInformationFieldSize () const;
+  /**
+   * Serialize information field.
+   *
+   * \param start the iterator
+   */
   void SerializeInformationField (Buffer::Iterator start) const;
+  /**
+   * Deserialize information field.
+   *
+   * \param start the iterator
+   * \param length the field length (bytes)
+   * \returns length of the information field deserialized (bytes)
+   */
   uint8_t DeserializeInformationField (Buffer::Iterator start,
                                        uint8_t length);
 
@@ -81,6 +104,8 @@ public:
    *         information element
    */
   uint16_t GetSerializedSize () const;
+
+
 private:
   /**
    * This member points to the SupportedRates object that contains the
@@ -106,8 +131,15 @@ class SupportedRates : public WifiInformationElement
 public:
   SupportedRates ();
 
+  /// type conversion operator
   SupportedRates (const SupportedRates &);
-  SupportedRates& operator= (const SupportedRates&);
+  /**
+   * assignment operator
+   *
+   * \param rates the rates to assign
+   * \returns the assigned value
+   */
+  SupportedRates& operator= (const SupportedRates& rates);
 
 /**
  * This defines the maximum number of supported rates that a STA is
@@ -129,9 +161,17 @@ public:
    * \param bs the rate to be set
    */
   void SetBasicRate (uint32_t bs);
-
   /**
-   * Check if the given rate is supported.
+   * Add a special value to the supported rate set, corresponding to
+   * a BSS membership selector
+   *
+   * \param bs the special membership selector value (not a valid rate)
+   */
+  void AddBssMembershipSelectorRate (uint32_t bs);
+  /**
+   * Check if the given rate is supported.  The rate is encoded as it is
+   * serialized to the Supported Rates Information Element (i.e. as a
+   * multiple of 500 Kbits/sec, possibly with MSB set to 1).
    *
    * \param bs the rate to be checked
    *
@@ -139,14 +179,25 @@ public:
    */
   bool IsSupportedRate (uint32_t bs) const;
   /**
-   * Check if the given rate is a basic rate.
+   * Check if the given rate is a basic rate.  The rate is encoded as it is
+   * serialized to the Supported Rates Information Element (i.e. as a
+   * multiple of 500 Kbits/sec, with MSB set to 1).
    *
    * \param bs the rate to be checked
    *
    * \return true if the rate is a basic rate, false otherwise
    */
   bool IsBasicRate (uint32_t bs) const;
-
+  /**
+   * Check if the given rate is a BSS membership selector value.  The rate
+   * is encoded as it is serialized to the Supporting Rates Information
+   * Element (i.e. with the MSB set to 1).
+   *
+   * \param bs the rate to be checked
+   *
+   * \return true if the rate is a BSS membership selector, false otherwise
+   */
+  bool IsBssMembershipSelectorRate (uint32_t bs) const;
   /**
    * Return the number of supported rates.
    *
@@ -155,19 +206,41 @@ public:
   uint8_t GetNRates (void) const;
   /**
    * Return the rate at the given index.
+   * Return the rate (converted back to raw value) at the given index.
    *
    * \param i the given index
    * \return the rate
    */
   uint32_t GetRate (uint8_t i) const;
-
+  /**
+   * Get the ElementID.
+   *
+   * \returns the element ID
+   */
   WifiInformationElementId ElementId () const;
+  /**
+   * Get the information field size.
+   *
+   * \returns the information field size
+   */
   uint8_t GetInformationFieldSize () const;
+  /**
+   * Get the information field size.
+   *
+   * \param start the information field iterator
+   */
   void SerializeInformationField (Buffer::Iterator start) const;
+  /**
+   * Get the information field size.
+   *
+   * \param start the information field iterator
+   * \param length the size of the information field (bytes)
+   * \returns the size of the field read (bytes)
+   */
   uint8_t DeserializeInformationField (Buffer::Iterator start,
                                        uint8_t length);
 
-  /*
+  /**
    * We support the Extended Supported Rates Information Element
    * through the ExtendedSupportedRatesIE object which is declared
    * above. We allow this class to be a friend so that it can access
@@ -175,7 +248,7 @@ public:
    * extended.
    */
   friend class ExtendedSupportedRatesIE;
-  ExtendedSupportedRatesIE extended;
+  ExtendedSupportedRatesIE extended; //!< extended suppoted rates info element
 
 
 private:

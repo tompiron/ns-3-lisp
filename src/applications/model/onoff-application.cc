@@ -81,10 +81,12 @@ OnOffApplication::GetTypeId (void)
                    "that there is no limit.",
                    UintegerValue (0),
                    MakeUintegerAccessor (&OnOffApplication::m_maxBytes),
-                   MakeUintegerChecker<uint32_t> ())
-    .AddAttribute ("Protocol", "The type of protocol to use.",
+                   MakeUintegerChecker<uint64_t> ())
+    .AddAttribute ("Protocol", "The type of protocol to use. This should be "
+                   "a subclass of ns3::SocketFactory",
                    TypeIdValue (UdpSocketFactory::GetTypeId ()),
                    MakeTypeIdAccessor (&OnOffApplication::m_tid),
+                   // This should check for SocketFactory as a parent
                    MakeTypeIdChecker ())
     .AddTraceSource ("Tx", "A new packet is created and is sent",
                      MakeTraceSourceAccessor (&OnOffApplication::m_txTrace),
@@ -110,7 +112,7 @@ OnOffApplication::~OnOffApplication()
 }
 
 void 
-OnOffApplication::SetMaxBytes (uint32_t maxBytes)
+OnOffApplication::SetMaxBytes (uint64_t maxBytes)
 {
   NS_LOG_FUNCTION (this << maxBytes);
   m_maxBytes = maxBytes;
@@ -153,12 +155,18 @@ void OnOffApplication::StartApplication () // Called at time specified by Start
       m_socket = Socket::CreateSocket (GetNode (), m_tid);
       if (Inet6SocketAddress::IsMatchingType (m_peer))
         {
-          m_socket->Bind6 ();
+          if (m_socket->Bind6 () == -1)
+            {
+              NS_FATAL_ERROR ("Failed to bind socket");
+            }
         }
       else if (InetSocketAddress::IsMatchingType (m_peer) ||
                PacketSocketAddress::IsMatchingType (m_peer))
         {
-          m_socket->Bind ();
+          if (m_socket->Bind () == -1)
+            {
+              NS_FATAL_ERROR ("Failed to bind socket");
+            }
         }
       m_socket->Connect (m_peer);
       m_socket->SetAllowBroadcast (true);

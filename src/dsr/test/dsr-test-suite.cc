@@ -53,7 +53,19 @@ using namespace ns3;
 using namespace dsr;
 
 // -----------------------------------------------------------------------------
-// / Unit test for DSR Fixed Size Header
+/**
+ * \ingroup dsr
+ * \defgroup dsr-test DSR routing module tests
+ */
+
+
+/**
+ * \ingroup dsr-test
+ * \ingroup tests
+ *
+ * \class DsrFsHeaderTest
+ * \brief Unit test for DSR Fixed Size Header
+ */
 class DsrFsHeaderTest : public TestCase
 {
 public:
@@ -85,7 +97,13 @@ DsrFsHeaderTest::DoRun ()
   NS_TEST_EXPECT_MSG_EQ (*(data + 8), rreqHeader.GetType (), "expect the rreqHeader after fixed size header");
 }
 // -----------------------------------------------------------------------------
-// / Unit test for RREQ
+/**
+ * \ingroup dsr-test
+ * \ingroup tests
+ *
+ * \class DsrRreqHeaderTest
+ * \brief Unit test for RREQ
+ */
 class DsrRreqHeaderTest : public TestCase
 {
 public:
@@ -130,7 +148,13 @@ DsrRreqHeaderTest::DoRun ()
   NS_TEST_EXPECT_MSG_EQ (bytes, 20, "Total RREP is 20 bytes long");
 }
 // -----------------------------------------------------------------------------
-// / Unit test for RREP
+/**
+ * \ingroup dsr-test
+ * \ingroup tests
+ *
+ * \class DsrRrepHeaderTest
+ * \brief Unit test for RREP
+ */
 class DsrRrepHeaderTest : public TestCase
 {
 public:
@@ -171,7 +195,13 @@ DsrRrepHeaderTest::DoRun ()
   NS_TEST_EXPECT_MSG_EQ (bytes, 16, "Total RREP is 16 bytes long");
 }
 // -----------------------------------------------------------------------------
-// / Unit test for Source Route
+/**
+ * \ingroup dsr-test
+ * \ingroup tests
+ *
+ * \class DsrSRHeaderTest
+ * \brief Unit test for Source Route
+ */
 class DsrSRHeaderTest : public TestCase
 {
 public:
@@ -216,7 +246,13 @@ DsrSRHeaderTest::DoRun ()
   NS_TEST_EXPECT_MSG_EQ (bytes, 16, "Total RREP is 16 bytes long");
 }
 // -----------------------------------------------------------------------------
-// / Unit test for RERR
+/**
+ * \ingroup dsr-test
+ * \ingroup tests
+ *
+ * \class DsrRerrHeaderTest
+ * \brief Unit test for RERR
+ */
 class DsrRerrHeaderTest : public TestCase
 {
 public:
@@ -255,7 +291,13 @@ DsrRerrHeaderTest::DoRun ()
   NS_TEST_EXPECT_MSG_EQ (bytes, 20, "Total RREP is 20 bytes long");
 }
 // -----------------------------------------------------------------------------
-// / Unit test for ACK-REQ
+/**
+ * \ingroup dsr-test
+ * \ingroup tests
+ *
+ * \class DsrAckReqHeaderTest
+ * \brief Unit test for ACK-REQ
+ */
 class DsrAckReqHeaderTest : public TestCase
 {
 public:
@@ -291,7 +333,13 @@ DsrAckReqHeaderTest::DoRun ()
   NS_TEST_EXPECT_MSG_EQ (bytes, 4, "Total RREP is 4 bytes long");
 }
 // -----------------------------------------------------------------------------
-// / Unit test for ACK
+/**
+ * \ingroup dsr-test
+ * \ingroup tests
+ *
+ * \class DsrAckHeaderTest
+ * \brief Unit test for ACK
+ */
 class DsrAckHeaderTest : public TestCase
 {
 public:
@@ -331,7 +379,13 @@ DsrAckHeaderTest::DoRun ()
   NS_TEST_EXPECT_MSG_EQ (bytes, 12, "Total RREP is 12 bytes long");
 }
 // -----------------------------------------------------------------------------
-// / Unit test for DSR route cache entry
+/**
+ * \ingroup dsr-test
+ * \ingroup tests
+ *
+ * \class DsrCacheEntryTest
+ * \brief Unit test for DSR route cache entry
+ */
 class DsrCacheEntryTest : public TestCase
 {
 public:
@@ -350,12 +404,12 @@ DsrCacheEntryTest::~DsrCacheEntryTest ()
 void
 DsrCacheEntryTest::DoRun ()
 {
-  Ptr<dsr::RouteCache> rcache = CreateObject<dsr::RouteCache> ();
+  Ptr<dsr::DsrRouteCache> rcache = CreateObject<dsr::DsrRouteCache> ();
   std::vector<Ipv4Address> ip;
   ip.push_back (Ipv4Address ("0.0.0.0"));
   ip.push_back (Ipv4Address ("0.0.0.1"));
   Ipv4Address dst = Ipv4Address ("0.0.0.1");
-  dsr::RouteCacheEntry entry (ip, dst, Seconds (1));
+  dsr::DsrRouteCacheEntry entry (ip, dst, Seconds (1));
   NS_TEST_EXPECT_MSG_EQ (entry.GetVector ().size (), 2, "trivial");
   NS_TEST_EXPECT_MSG_EQ (entry.GetDestination (), Ipv4Address ("0.0.0.1"), "trivial");
   NS_TEST_EXPECT_MSG_EQ (entry.GetExpireTime (), Seconds (1), "trivial");
@@ -374,8 +428,8 @@ DsrCacheEntryTest::DoRun ()
   ip2.push_back (Ipv4Address ("1.1.1.0"));
   ip2.push_back (Ipv4Address ("1.1.1.1"));
   Ipv4Address dst2 = Ipv4Address ("1.1.1.1");
-  dsr::RouteCacheEntry entry2 (ip2, dst2, Seconds (2));
-  dsr::RouteCacheEntry newEntry;
+  dsr::DsrRouteCacheEntry entry2 (ip2, dst2, Seconds (2));
+  dsr::DsrRouteCacheEntry newEntry;
   NS_TEST_EXPECT_MSG_EQ (rcache->AddRoute (entry2), true, "trivial");
   NS_TEST_EXPECT_MSG_EQ (rcache->LookupRoute (dst2, newEntry), true, "trivial");
   NS_TEST_EXPECT_MSG_EQ (rcache->DeleteRoute (Ipv4Address ("2.2.2.2")), false, "trivial");
@@ -384,7 +438,13 @@ DsrCacheEntryTest::DoRun ()
   NS_TEST_EXPECT_MSG_EQ (rcache->DeleteRoute (Ipv4Address ("1.1.1.1")), false, "trivial");
 }
 // -----------------------------------------------------------------------------
-// / Unit test for Send Buffer
+/**
+ * \ingroup dsr-test
+ * \ingroup tests
+ *
+ * \class DsrSendBuffTest
+ * \brief Unit test for Send Buffer
+ */
 class DsrSendBuffTest : public TestCase
 {
 public:
@@ -392,10 +452,12 @@ public:
   ~DsrSendBuffTest ();
   virtual void
   DoRun (void);
+  /// Check size limit function
   void CheckSizeLimit ();
+  /// Check timeout function
   void CheckTimeout ();
 
-  dsr::SendBuffer q;
+  dsr::DsrSendBuffer q; ///< send buffer
 };
 DsrSendBuffTest::DsrSendBuffTest ()
   : TestCase ("DSR SendBuff"),
@@ -415,7 +477,7 @@ DsrSendBuffTest::DoRun ()
 
   Ptr<const Packet> packet = Create<Packet> ();
   Ipv4Address dst1 = Ipv4Address ("0.0.0.1");
-  dsr::SendBuffEntry e1 (packet, dst1, Seconds (1));
+  dsr::DsrSendBuffEntry e1 (packet, dst1, Seconds (1));
   q.Enqueue (e1);
   q.Enqueue (e1);
   q.Enqueue (e1);
@@ -427,11 +489,11 @@ DsrSendBuffTest::DoRun ()
   NS_TEST_EXPECT_MSG_EQ (q.GetSize (), 0, "trivial");
 
   Ipv4Address dst2 = Ipv4Address ("0.0.0.2");
-  dsr::SendBuffEntry e2 (packet, dst2, Seconds (1));
+  dsr::DsrSendBuffEntry e2 (packet, dst2, Seconds (1));
   q.Enqueue (e1);
   q.Enqueue (e2);
   Ptr<Packet> packet2 = Create<Packet> ();
-  dsr::SendBuffEntry e3 (packet2, dst2, Seconds (1));
+  dsr::DsrSendBuffEntry e3 (packet2, dst2, Seconds (1));
   NS_TEST_EXPECT_MSG_EQ (q.Dequeue (Ipv4Address ("0.0.0.3"), e3), false, "trivial");
   NS_TEST_EXPECT_MSG_EQ (q.Dequeue (Ipv4Address ("0.0.0.2"), e3), true, "trivial");
   NS_TEST_EXPECT_MSG_EQ (q.Find (Ipv4Address ("0.0.0.2")), false, "trivial");
@@ -440,7 +502,7 @@ DsrSendBuffTest::DoRun ()
   NS_TEST_EXPECT_MSG_EQ (q.GetSize (), 2, "trivial");
   Ptr<Packet> packet4 = Create<Packet> ();
   Ipv4Address dst4 = Ipv4Address ("0.0.0.4");
-  dsr::SendBuffEntry e4 (packet4, dst4, Seconds (20));
+  dsr::DsrSendBuffEntry e4 (packet4, dst4, Seconds (20));
   q.Enqueue (e4);
   NS_TEST_EXPECT_MSG_EQ (q.GetSize (), 3, "trivial");
   q.DropPacketWithDst (Ipv4Address ("0.0.0.4"));
@@ -458,7 +520,7 @@ DsrSendBuffTest::CheckSizeLimit ()
 {
   Ptr<Packet> packet = Create<Packet> ();
   Ipv4Address dst;
-  dsr::SendBuffEntry e1 (packet, dst, Seconds (1));
+  dsr::DsrSendBuffEntry e1 (packet, dst, Seconds (1));
 
   for (uint32_t i = 0; i < q.GetMaxQueueLen (); ++i)
     {
@@ -478,7 +540,13 @@ DsrSendBuffTest::CheckTimeout ()
   NS_TEST_EXPECT_MSG_EQ (q.GetSize (), 0, "Must be empty now");
 }
 // -----------------------------------------------------------------------------
-// / Unit test for DSR routing table entry
+/**
+ * \ingroup dsr-test
+ * \ingroup tests
+ *
+ * \class DsrRreqTableTest
+ * \brief Unit test for DSR routing table entry
+ */
 class DsrRreqTableTest : public TestCase
 {
 public:
@@ -503,6 +571,13 @@ DsrRreqTableTest::DoRun ()
   NS_TEST_EXPECT_MSG_EQ (rt.m_reqNo, 2, "trivial");
 }
 // -----------------------------------------------------------------------------
+/**
+ * \ingroup dsr-test
+ * \ingroup tests
+ *
+ * \class DsrTestSuite
+ * \brief DSR test suite
+ */
 class DsrTestSuite : public TestSuite
 {
 public:

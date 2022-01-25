@@ -28,7 +28,6 @@
 #include "ns3/simple-channel.h"
 #include "ns3/simple-net-device.h"
 #include "ns3/simple-net-device-helper.h"
-#include "ns3/drop-tail-queue.h"
 #include "ns3/socket.h"
 
 #include "ns3/log.h"
@@ -52,22 +51,69 @@
 using namespace ns3;
 
 
+/**
+ * \ingroup internet-test
+ * \ingroup tests
+ *
+ * \brief IPv4 RAW Socket Test
+ */
 class Ipv4RawSocketImplTest : public TestCase
 {
-  Ptr<Packet> m_receivedPacket;
-  Ptr<Packet> m_receivedPacket2;
+  Ptr<Packet> m_receivedPacket;   //!< Received packet (1).
+  Ptr<Packet> m_receivedPacket2;  //!< Received packet (2).
+
+  /**
+   * \brief Send data.
+   * \param socket The sending socket.
+   * \param to Destination address.
+   */
   void DoSendData (Ptr<Socket> socket, std::string to);
+  /**
+   * \brief Send data.
+   * \param socket The sending socket.
+   * \param to Destination address.
+   */
   void SendData (Ptr<Socket> socket, std::string to);
+  /**
+   * \brief Send data.
+   * \param socket The sending socket.
+   * \param to Destination address.
+   */
   void DoSendData_IpHdr (Ptr<Socket> socket, std::string to);
+  /**
+   * \brief Send data.
+   * \param socket The sending socket.
+   * \param to Destination address.
+   */
   void SendData_IpHdr (Ptr<Socket> socket, std::string to);
 
 public:
   virtual void DoRun (void);
   Ipv4RawSocketImplTest ();
 
+  /**
+   * \brief Receive data.
+   * \param socket The receiving socket.
+   * \param packet The received packet.
+   * \param from The sender.
+   */
   void ReceivePacket (Ptr<Socket> socket, Ptr<Packet> packet, const Address &from);
+  /**
+   * \brief Receive data.
+   * \param socket The receiving socket.
+   * \param packet The received packet.
+   * \param from The sender.
+   */
   void ReceivePacket2 (Ptr<Socket> socket, Ptr<Packet> packet, const Address &from);
+  /**
+   * \brief Receive data.
+   * \param socket The receiving socket.
+   */
   void ReceivePkt (Ptr<Socket> socket);
+  /**
+   * \brief Receive data.
+   * \param socket The receiving socket.
+   */
   void ReceivePkt2 (Ptr<Socket> socket);
 };
 
@@ -276,9 +322,32 @@ Ipv4RawSocketImplTest::DoRun (void)
   m_receivedPacket = 0;
   m_receivedPacket2 = 0;
 
+  // Simple getpeername tests
+
+  Address peerAddress;
+  int err = txSocket->GetPeerName (peerAddress);
+  NS_TEST_EXPECT_MSG_EQ (err, -1, "socket GetPeerName() should fail when socket is not connected");
+  NS_TEST_EXPECT_MSG_EQ (txSocket->GetErrno (), Socket::ERROR_NOTCONN, "socket error code should be ERROR_NOTCONN");
+
+  InetSocketAddress peer ("10.0.0.1", 1234);
+  err = txSocket->Connect (peer);
+  NS_TEST_EXPECT_MSG_EQ (err, 0, "socket Connect() should succeed");
+
+  err = txSocket->GetPeerName (peerAddress);
+  NS_TEST_EXPECT_MSG_EQ (err, 0, "socket GetPeerName() should succeed when socket is connected");
+  peer.SetPort (0);
+  NS_TEST_EXPECT_MSG_EQ (peerAddress, peer, "address from socket GetPeerName() should equal the connected address");
+
   Simulator::Destroy ();
 }
-//-----------------------------------------------------------------------------
+
+
+/**
+ * \ingroup internet-test
+ * \ingroup tests
+ *
+ * \brief IPv4 RAW Socket TestSuite
+ */
 class Ipv4RawTestSuite : public TestSuite
 {
 public:
@@ -286,4 +355,6 @@ public:
   {
     AddTestCase (new Ipv4RawSocketImplTest, TestCase::QUICK);
   }
-} g_ipv4rawTestSuite;
+};
+
+static Ipv4RawTestSuite g_ipv4rawTestSuite; //!< Static variable for test initialization

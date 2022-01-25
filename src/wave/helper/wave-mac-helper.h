@@ -23,12 +23,15 @@
  */
 #ifndef WAVE_MAC_HELPER_H
 #define WAVE_MAC_HELPER_H
-#include "ns3/qos-wifi-mac-helper.h"
-#include "ns3/nqos-wifi-mac-helper.h"
+#include "ns3/wifi-mac-helper.h"
 
 namespace ns3 {
 
-class NqosWaveMacHelper : public NqosWifiMacHelper
+/**
+ * \ingroup wave
+ * \brief Nqos Wave Mac Helper class
+ */
+class NqosWaveMacHelper : public WifiMacHelper
 {
 public:
   /**
@@ -44,6 +47,7 @@ public:
   /**
    * Create a mac helper in a default working state.
    * i.e., this is an ocb mac by default.
+   * \returns NqosWaveMacHelper
    */
   static NqosWaveMacHelper Default (void);
   /**
@@ -64,6 +68,12 @@ public:
    * \param v6 the value of the attribute to set
    * \param n7 the name of the attribute to set
    * \param v7 the value of the attribute to set
+   * \param n8 the value of the attribute to set
+   * \param v8 the value of the attribute to set
+   * \param n9 the value of the attribute to set
+   * \param v9 the value of the attribute to set
+   * \param n10 the value of the attribute to set
+   * \param v10 the value of the attribute to set
    *
    * All the attributes specified in this method should exist
    * in the requested mac.
@@ -79,10 +89,17 @@ public:
                         std::string n4 = "", const AttributeValue &v4 = EmptyAttributeValue (),
                         std::string n5 = "", const AttributeValue &v5 = EmptyAttributeValue (),
                         std::string n6 = "", const AttributeValue &v6 = EmptyAttributeValue (),
-                        std::string n7 = "", const AttributeValue &v7 = EmptyAttributeValue ());
+                        std::string n7 = "", const AttributeValue &v7 = EmptyAttributeValue (),
+                        std::string n8 = "", const AttributeValue &v8 = EmptyAttributeValue (),
+                        std::string n9 = "", const AttributeValue &v9 = EmptyAttributeValue (),
+                        std::string n10 = "", const AttributeValue &v10 = EmptyAttributeValue ());
 };
 
-class QosWaveMacHelper : public QosWifiMacHelper
+/**
+ * \ingroup wave
+ * \brief Qos Wave Mac Helper class
+ */
+class QosWaveMacHelper : public WifiMacHelper
 {
 public:
   /**
@@ -119,6 +136,12 @@ public:
    * \param v6 the value of the attribute to set
    * \param n7 the name of the attribute to set
    * \param v7 the value of the attribute to set
+   * \param n8 the value of the attribute to set
+   * \param v8 the value of the attribute to set
+   * \param n9 the value of the attribute to set
+   * \param v9 the value of the attribute to set
+   * \param n10 the value of the attribute to set
+   * \param v10 the value of the attribute to set
    *
    * All the attributes specified in this method should exist
    * in the requested mac.
@@ -134,7 +157,10 @@ public:
                         std::string n4 = "", const AttributeValue &v4 = EmptyAttributeValue (),
                         std::string n5 = "", const AttributeValue &v5 = EmptyAttributeValue (),
                         std::string n6 = "", const AttributeValue &v6 = EmptyAttributeValue (),
-                        std::string n7 = "", const AttributeValue &v7 = EmptyAttributeValue ());
+                        std::string n7 = "", const AttributeValue &v7 = EmptyAttributeValue (),
+                        std::string n8 = "", const AttributeValue &v8 = EmptyAttributeValue (),
+                        std::string n9 = "", const AttributeValue &v9 = EmptyAttributeValue (),
+                        std::string n10 = "", const AttributeValue &v10 = EmptyAttributeValue ());
 };
 
 }

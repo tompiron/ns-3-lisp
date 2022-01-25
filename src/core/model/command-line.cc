@@ -26,6 +26,7 @@
 #include <sstream>
 
 #include "command-line.h"
+#include "des-metrics.h"
 #include "log.h"
 #include "config.h"
 #include "global-value.h"
@@ -37,7 +38,7 @@
 /**
  * \file
  * \ingroup commandline
- * CommandLine class implementation.
+ * ns3::CommandLine implementation.
  */
 
 namespace ns3 {
@@ -109,17 +110,16 @@ CommandLine::Item::~Item ()
 }
 
 void
-CommandLine::Parse (int iargc, char *argv[])
+CommandLine::Parse (int argc, char *argv[])
 {
-  NS_LOG_FUNCTION (this << iargc << argv);
+  NS_LOG_FUNCTION (this << argc << argv);
 
   m_name = SystemPath::Split (argv[0]).back ();
   
-  int argc = iargc;
-  for (argc--, argv++; argc > 0; argc--, argv++)
+  for (int iargc = 1; iargc < argc; iargc++)
     {
       // remove "--" or "-" heading.
-      std::string param = *argv;
+      std::string param = argv[iargc];
       std::string::size_type cur = param.find ("--");
       if (cur == 0)
         {
@@ -152,6 +152,11 @@ CommandLine::Parse (int iargc, char *argv[])
         }
       HandleArgument (name, value);
     }
+
+#ifdef ENABLE_DES_METRICS
+  DesMetrics::Get ()->Initialize (argc, argv);
+#endif
+  
 }
 
 void

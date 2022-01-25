@@ -36,7 +36,8 @@ TypeId
 PositionAllocator::GetTypeId (void)
 {
   static TypeId tid = TypeId ("ns3::PositionAllocator")
-    .SetParent<Object> ();
+    .SetParent<Object> ()
+    .SetGroupName ("Mobility");
   return tid;
 }
 
@@ -55,6 +56,7 @@ ListPositionAllocator::GetTypeId (void)
 {
   static TypeId tid = TypeId ("ns3::ListPositionAllocator")
     .SetParent<PositionAllocator> ()
+    .SetGroupName ("Mobility")
     .AddConstructor<ListPositionAllocator> ()
   ;
   return tid;
@@ -83,6 +85,12 @@ int64_t
 ListPositionAllocator::AssignStreams (int64_t stream)
 {
   return 0;
+}
+
+uint32_t
+ListPositionAllocator::GetSize (void) const
+{
+  return m_positions.size ();
 }
 
 NS_OBJECT_ENSURE_REGISTERED (GridPositionAllocator);

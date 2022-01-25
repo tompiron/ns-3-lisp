@@ -23,18 +23,13 @@
 #ifndef WIFI_HELPER_H
 #define WIFI_HELPER_H
 
-#include <string>
-#include "ns3/attribute.h"
-#include "ns3/object-factory.h"
-#include "ns3/node-container.h"
-#include "ns3/net-device-container.h"
-#include "ns3/wifi-phy-standard.h"
 #include "ns3/trace-helper.h"
+#include "ns3/wifi-phy.h"
+#include "wifi-mac-helper.h"
 
 namespace ns3 {
 
 class WifiPhy;
-class WifiMac;
 class WifiNetDevice;
 class Node;
 
@@ -44,9 +39,11 @@ class Node;
  * This base class must be implemented by new PHY implementation which wish to integrate
  * with the \ref ns3::WifiHelper class.
  */
-class WifiPhyHelper
+class WifiPhyHelper : public PcapHelperForDevice,
+                      public AsciiTraceHelperForDevice
 {
 public:
+  WifiPhyHelper ();
   virtual ~WifiPhyHelper ();
 
   /**
@@ -63,26 +60,146 @@ public:
    * by other Wifi device variants such as WaveNetDevice.
    */
   virtual Ptr<WifiPhy> Create (Ptr<Node> node, Ptr<NetDevice> device) const = 0;
-};
 
-
-/**
- * \brief create MAC objects
- *
- * This base class must be implemented by new MAC implementation which wish to integrate
- * with the \ref ns3::WifiHelper class.
- */
-class WifiMacHelper
-{
-public:
-  virtual ~WifiMacHelper ();
   /**
-   * \returns a new MAC object.
+   * \param name the name of the attribute to set
+   * \param v the value of the attribute
    *
-   * Subclasses must implement this method to allow the ns3::WifiHelper class
-   * to create MAC objects from ns3::WifiHelper::Install.
+   * Set an attribute of the underlying PHY object.
    */
-  virtual Ptr<WifiMac> Create (void) const = 0;
+  void Set (std::string name, const AttributeValue &v);
+  /**
+   * \param name the name of the error rate model to set.
+   * \param n0 the name of the attribute to set
+   * \param v0 the value of the attribute to set
+   * \param n1 the name of the attribute to set
+   * \param v1 the value of the attribute to set
+   * \param n2 the name of the attribute to set
+   * \param v2 the value of the attribute to set
+   * \param n3 the name of the attribute to set
+   * \param v3 the value of the attribute to set
+   * \param n4 the name of the attribute to set
+   * \param v4 the value of the attribute to set
+   * \param n5 the name of the attribute to set
+   * \param v5 the value of the attribute to set
+   * \param n6 the name of the attribute to set
+   * \param v6 the value of the attribute to set
+   * \param n7 the name of the attribute to set
+   * \param v7 the value of the attribute to set
+   *
+   * Set the error rate model and its attributes to use when Install is called.
+   */
+  void SetErrorRateModel (std::string name,
+                          std::string n0 = "", const AttributeValue &v0 = EmptyAttributeValue (),
+                          std::string n1 = "", const AttributeValue &v1 = EmptyAttributeValue (),
+                          std::string n2 = "", const AttributeValue &v2 = EmptyAttributeValue (),
+                          std::string n3 = "", const AttributeValue &v3 = EmptyAttributeValue (),
+                          std::string n4 = "", const AttributeValue &v4 = EmptyAttributeValue (),
+                          std::string n5 = "", const AttributeValue &v5 = EmptyAttributeValue (),
+                          std::string n6 = "", const AttributeValue &v6 = EmptyAttributeValue (),
+                          std::string n7 = "", const AttributeValue &v7 = EmptyAttributeValue ());
+
+  /**
+   * An enumeration of the pcap data link types (DLTs) which this helper
+   * supports.  See http://wiki.wireshark.org/Development/LibpcapFileFormat
+   * for more information on these formats.
+   */
+  enum SupportedPcapDataLinkTypes
+  {
+    DLT_IEEE802_11       = PcapHelper::DLT_IEEE802_11,       /**< IEEE 802.11 Wireless LAN headers on packets */
+    DLT_PRISM_HEADER     = PcapHelper::DLT_PRISM_HEADER,     /**< Include Prism monitor mode information */
+    DLT_IEEE802_11_RADIO = PcapHelper::DLT_IEEE802_11_RADIO  /**< Include Radiotap link layer information */
+  };
+
+  /**
+   * Set the data link type of PCAP traces to be used. This function has to be
+   * called before EnablePcap(), so that the header of the pcap file can be
+   * written correctly.
+   *
+   * @see SupportedPcapDataLinkTypes
+   *
+   * @param dlt The data link type of the pcap file (and packets) to be used
+   */
+  void SetPcapDataLinkType (enum SupportedPcapDataLinkTypes dlt);
+
+  /**
+   * Get the data link type of PCAP traces to be used.
+   *
+   * @see SupportedPcapDataLinkTypes
+   *
+   * @returns The data link type of the pcap file (and packets) to be used
+   */
+  PcapHelper::DataLinkType GetPcapDataLinkType (void) const;
+
+protected:
+  /**
+   * \param file the pcap file wrapper
+   * \param packet the packet
+   * \param channelFreqMhz the channel frequency
+   * \param txVector the TXVECTOR
+   * \param aMpdu the A-MPDU information
+   *
+   * Handle tx pcap.
+   */
+  static void PcapSniffTxEvent (Ptr<PcapFileWrapper> file,
+                                Ptr<const Packet> packet,
+                                uint16_t channelFreqMhz,
+                                WifiTxVector txVector,
+                                MpduInfo aMpdu);
+  /**
+   * \param file the pcap file wrapper
+   * \param packet the packet
+   * \param channelFreqMhz the channel frequency
+   * \param txVector the TXVECTOR
+   * \param aMpdu the A-MPDU information
+   * \param signalNoise the rx signal and noise information
+   *
+   * Handle rx pcap.
+   */
+  static void PcapSniffRxEvent (Ptr<PcapFileWrapper> file,
+                                Ptr<const Packet> packet,
+                                uint16_t channelFreqMhz,
+                                WifiTxVector txVector,
+                                MpduInfo aMpdu,
+                                SignalNoiseDbm signalNoise);
+
+  ObjectFactory m_phy; ///< PHY object
+  ObjectFactory m_errorRateModel; ///< error rate model
+
+private:
+  /**
+   * @brief Enable pcap output the indicated net device.
+   *
+   * NetDevice-specific implementation mechanism for hooking the trace and
+   * writing to the trace file.
+   *
+   * @param prefix Filename prefix to use for pcap files.
+   * @param nd Net device for which you want to enable tracing.
+   * @param promiscuous If true capture all possible packets available at the device.
+   * @param explicitFilename Treat the prefix as an explicit filename if true
+   */
+  virtual void EnablePcapInternal (std::string prefix,
+                                   Ptr<NetDevice> nd,
+                                   bool promiscuous,
+                                   bool explicitFilename);
+
+  /**
+   * \brief Enable ascii trace output on the indicated net device.
+   *
+   * NetDevice-specific implementation mechanism for hooking the trace and
+   * writing to the trace file.
+   *
+   * \param stream The output stream object to use when logging ascii traces.
+   * \param prefix Filename prefix to use for ascii trace files.
+   * \param nd Net device for which you want to enable tracing.
+   * \param explicitFilename Treat the prefix as an explicit filename if true
+   */
+  virtual void EnableAsciiInternal (Ptr<OutputStreamWrapper> stream,
+                                    std::string prefix,
+                                    Ptr<NetDevice> nd,
+                                    bool explicitFilename);
+
+  PcapHelper::DataLinkType m_pcapDlt; ///< PCAP data link type
 };
 
 
@@ -101,6 +218,10 @@ public:
   /**
    * Create a Wifi helper in an empty state: all its parameters
    * must be set before calling ns3::WifiHelper::Install
+   *
+   * The default state is defined as being an Adhoc MAC layer with an ARF rate control algorithm
+   * and both objects using their default attribute values.
+   * By default, configure MAC and PHY for 802.11a.
    */
   WifiHelper ();
 
@@ -110,7 +231,11 @@ public:
    * The default state is defined as being an Adhoc MAC layer with an ARF rate control algorithm
    * and both objects using their default attribute values. By default, configure MAC and PHY
    * for 802.11a.
+   *
+   * \deprecated This method will go away in future versions of ns-3.
+   * The constructor of the class is now performing the same job, which makes this function useless.
    */
+  NS_DEPRECATED
   static WifiHelper Default (void);
 
   /**
@@ -144,6 +269,18 @@ public:
                                 std::string n5 = "", const AttributeValue &v5 = EmptyAttributeValue (),
                                 std::string n6 = "", const AttributeValue &v6 = EmptyAttributeValue (),
                                 std::string n7 = "", const AttributeValue &v7 = EmptyAttributeValue ());
+  /**
+   * \param phy the PHY helper to create PHY objects
+   * \param mac the MAC helper to create MAC objects
+   * \param first lower bound on the set of nodes on which a wifi device must be created
+   * \param last upper bound on the set of nodes on which a wifi device must be created
+   * \returns a device container which contains all the devices created by this method.
+   */
+  NetDeviceContainer
+  virtual Install (const WifiPhyHelper &phy,
+                       const WifiMacHelper &mac,
+                       NodeContainer::Iterator first,
+                       NodeContainer::Iterator last) const;
   /**
    * \param phy the PHY helper to create PHY objects
    * \param mac the MAC helper to create MAC objects
@@ -217,8 +354,8 @@ public:
 
 
 protected:
-  ObjectFactory m_stationManager;
-  enum WifiPhyStandard m_standard;
+  ObjectFactory m_stationManager; ///< station manager
+  enum WifiPhyStandard m_standard; ///< wifi standard
 };
 
 } //namespace ns3

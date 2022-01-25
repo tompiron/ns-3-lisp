@@ -66,9 +66,9 @@ main (int argc, char *argv[])
   LogComponentEnable ("DsrFsHeader", LOG_LEVEL_ALL);
   LogComponentEnable ("DsrGraReplyTable", LOG_LEVEL_ALL);
   LogComponentEnable ("DsrSendBuffer", LOG_LEVEL_ALL);
-  LogComponentEnable ("RouteCache", LOG_LEVEL_ALL);
+  LogComponentEnable ("DsrRouteCache", LOG_LEVEL_ALL);
   LogComponentEnable ("DsrMaintainBuffer", LOG_LEVEL_ALL);
-  LogComponentEnable ("RreqTable", LOG_LEVEL_ALL);
+  LogComponentEnable ("DsrRreqTable", LOG_LEVEL_ALL);
   LogComponentEnable ("DsrErrorBuffer", LOG_LEVEL_ALL);
   LogComponentEnable ("DsrNetworkQueue", LOG_LEVEL_ALL);
 #endif
@@ -127,8 +127,8 @@ main (int argc, char *argv[])
   wifiChannel.AddPropagationLoss ("ns3::RangePropagationLossModel", "MaxRange", DoubleValue (txpDistance));
   wifiPhy.SetChannel (wifiChannel.Create ());
 
-  // Add a non-QoS upper mac, and disable rate control
-  NqosWifiMacHelper wifiMac = NqosWifiMacHelper::Default ();
+  // Add a mac and disable rate control
+  WifiMacHelper wifiMac;
   wifi.SetRemoteStationManager ("ns3::ConstantRateWifiManager", "DataMode", StringValue (dataMode), "ControlMode",
                                 StringValue (phyMode));
 
@@ -155,8 +155,8 @@ main (int argc, char *argv[])
 
   std::ostringstream pauseConstantRandomVariableStream;
   pauseConstantRandomVariableStream << "ns3::ConstantRandomVariable[Constant="
-                                   << pauseTime
-                                   << "]";
+                                    << pauseTime
+                                    << "]";
 
   adhocMobility.SetMobilityModel ("ns3::RandomWaypointMobilityModel",
                                   //                                  "Speed", StringValue ("ns3::UniformRandomVariable[Min=0.0|Max=nodeSpeed]"),

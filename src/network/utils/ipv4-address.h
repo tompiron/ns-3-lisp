@@ -106,6 +106,14 @@ public:
    */
   void Print (std::ostream &os) const;
   /**
+    * \return true if address is 0.0.0.0; false otherwise
+    */
+  bool IsAny (void) const;
+  /**
+    * \return true if address is 127.0.0.1; false otherwise
+    */
+  bool IsLocalhost (void) const;
+  /**
     * \return true if address is 255.255.255.255; false otherwise
     */
   bool IsBroadcast (void) const;
@@ -196,6 +204,7 @@ private:
 
   /**
    * \brief Convert to an Address type
+   * \return the Address corresponding to this object.
    */
   Address ConvertTo (void) const;
 
@@ -207,8 +216,31 @@ private:
   static uint8_t GetType (void);
   uint32_t m_address; //!< IPv4 address
 
+  /**
+   * \brief Equal to operator.
+   *
+   * \param a the first operand.
+   * \param b the first operand.
+   * \returns true if the operands are equal.
+   */
   friend bool operator == (Ipv4Address const &a, Ipv4Address const &b);
+
+  /**
+   * \brief Not equal to operator.
+   *
+   * \param a the first operand.
+   * \param b the first operand.
+   * \returns true if the operands are not equal.
+   */
   friend bool operator != (Ipv4Address const &a, Ipv4Address const &b);
+
+  /**
+   * \brief Less than to operator.
+   *
+   * \param a the first operand.
+   * \param b the first operand.
+   * \returns true if the first operand is less than the second.
+   */
   friend bool operator < (Ipv4Address const &a, Ipv4Address const &b);
 };
 
@@ -263,6 +295,7 @@ public:
   void Set (uint32_t mask);
   /**
    * \brief Return the inverse mask in host order. 
+   * \return The inverse mask
    */
   uint32_t GetInverse (void) const;
   /**

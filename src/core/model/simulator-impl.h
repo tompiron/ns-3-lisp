@@ -31,7 +31,7 @@
 /**
  * \file
  * \ingroup simulator
- * Declaration of class ns3::SimulatorImpl.
+ * ns3::SimulatorImpl declaration.
  */
 
 namespace ns3 {
@@ -62,11 +62,11 @@ public:
   /** \copydoc Simulator::Stop(void) */
   virtual void Stop (void) = 0;
   /** \copydoc Simulator::Stop(const Time&) */
-  virtual void Stop (Time const &delay) = 0;
+  virtual void Stop (const Time &delay) = 0;
   /** \copydoc Simulator::Schedule(const Time&,const Ptr<EventImpl>&) */
-  virtual EventId Schedule (Time const &delay, EventImpl *event) = 0;
+  virtual EventId Schedule (const Time &delay, EventImpl *event) = 0;
   /** \copydoc Simulator::ScheduleWithContext(uint32_t,const Time&,EventImpl*) */
-  virtual void ScheduleWithContext (uint32_t context, Time const &delay, EventImpl *event) = 0;
+  virtual void ScheduleWithContext (uint32_t context, const Time &delay, EventImpl *event) = 0;
   /** \copydoc Simulator::ScheduleNow(const Ptr<EventImpl>&) */
   virtual EventId ScheduleNow (EventImpl *event) = 0;
   /** \copydoc Simulator::ScheduleDestroy(const Ptr<EventImpl>&) */
@@ -91,7 +91,7 @@ public:
    * \param [in] schedulerFactory A new event scheduler factory.
    *
    * The event scheduler can be set at any time: the events scheduled
-   * in the previous scheduler will be transfered to the new scheduler
+   * in the previous scheduler will be transferred to the new scheduler
    * before we start to use it.
    */
   virtual void SetScheduler (ObjectFactory schedulerFactory) = 0;

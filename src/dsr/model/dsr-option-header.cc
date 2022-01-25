@@ -277,7 +277,7 @@ DsrOptionRreqHeader::~DsrOptionRreqHeader ()
 void DsrOptionRreqHeader::SetNumberAddress (uint8_t n)
 {
   m_ipv4Address.clear ();
-  m_ipv4Address.assign (n, Ipv4Address (""));
+  m_ipv4Address.assign (n, Ipv4Address ());
 }
 
 Ipv4Address DsrOptionRreqHeader::GetTarget ()
@@ -425,7 +425,7 @@ DsrOptionRrepHeader::~DsrOptionRrepHeader ()
 void DsrOptionRrepHeader::SetNumberAddress (uint8_t n)
 {
   m_ipv4Address.clear ();
-  m_ipv4Address.assign (n, Ipv4Address (""));
+  m_ipv4Address.assign (n, Ipv4Address ());
 }
 
 void DsrOptionRrepHeader::SetNodesAddress (std::vector<Ipv4Address> ipv4Address)
@@ -568,7 +568,7 @@ uint8_t DsrOptionSRHeader::GetSalvage () const
 void DsrOptionSRHeader::SetNumberAddress (uint8_t n)
 {
   m_ipv4Address.clear ();
-  m_ipv4Address.assign (n, Ipv4Address (""));
+  m_ipv4Address.assign (n, Ipv4Address ());
 }
 
 void DsrOptionSRHeader::SetNodesAddress (std::vector<Ipv4Address> ipv4Address)
@@ -800,8 +800,7 @@ TypeId DsrOptionRerrUnreachHeader::GetInstanceTypeId () const
 }
 
 DsrOptionRerrUnreachHeader::DsrOptionRerrUnreachHeader ()
-  :
-    m_salvage (0)
+  : m_salvage (0)
 {
   SetType (3);
   SetLength (18);
@@ -929,8 +928,7 @@ TypeId DsrOptionRerrUnsupportHeader::GetInstanceTypeId () const
 }
 
 DsrOptionRerrUnsupportHeader::DsrOptionRerrUnsupportHeader ()
-  :
-    m_salvage (0)
+  : m_salvage (0)
 {
   SetType (3);
   SetLength (14);

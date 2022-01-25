@@ -27,6 +27,7 @@
 #include "qos-wifi-mac-helper.h"
 #include <map>
 
+
 namespace ns3 {
 
 /**
@@ -34,6 +35,7 @@ namespace ns3 {
  *
  * This class can create MACs of type ns3::ApWifiMac, ns3::StaWifiMac,
  * and, ns3::AdhocWifiMac, with QosSupported and HTSupported attributes set to True.
+ * \deprecated This class deprecated and replaced by ns3::WifiMacHelper
  */
 class HtWifiMacHelper : public QosWifiMacHelper
 {
@@ -51,11 +53,14 @@ public:
 
   /**
    * Create a mac helper in a default working state.
+   * \returns a default HtWifiMacHelper
    */
   static HtWifiMacHelper Default (void);
 
   /**
    * Converts a HT MCS value into a DataRate value
+   * \param mcs the HT MCS
+   * \returns a DataRate value for the HT MCS
    */
   static StringValue DataRateForMcs (int mcs);
 };

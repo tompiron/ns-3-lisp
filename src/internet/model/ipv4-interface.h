@@ -23,8 +23,6 @@
 #define IPV4_INTERFACE_H
 
 #include <list>
-#include "ns3/ipv4-address.h"
-#include "ns3/ipv4-interface-address.h"
 #include "ns3/ptr.h"
 #include "ns3/object.h"
 
@@ -34,8 +32,14 @@ class NetDevice;
 class Packet;
 class Node;
 class ArpCache;
+class Ipv4InterfaceAddress;
+class Ipv4Address;
+class Ipv4Header;
+class TrafficControlLayer;
 
 /**
+ * \ingroup ipv4
+ *
  * \brief The IPv4 representation of a network interface
  *
  * This class roughly corresponds to the struct in_device
@@ -68,6 +72,11 @@ public:
    * \param device NetDevice
    */
   void SetDevice (Ptr<NetDevice> device);
+  /**
+   * \brief Set the TrafficControlLayer.
+   * \param tc TrafficControlLayer object
+   */
+  void SetTrafficControl (Ptr<TrafficControlLayer> tc);
   /**
    * \brief Set ARP cache used by this interface
    * \param arpCache the ARP cache
@@ -139,12 +148,13 @@ public:
 
   /**
    * \param p packet to send
+   * \param hdr IPv4 header
    * \param dest next hop address of packet.
    *
    * This method will eventually call the private
    * SendTo method which must be implemented by subclasses.
    */ 
-  void Send (Ptr<Packet> p, Ipv4Address dest);
+  void Send (Ptr<Packet> p, const Ipv4Header & hdr, Ipv4Address dest);
 
   /**
    * \param address The Ipv4InterfaceAddress to add to the interface
@@ -182,6 +192,23 @@ protected:
   virtual void DoDispose (void);
 private:
   /**
+   * \brief Copy constructor
+   * \param o object to copy
+   *
+   * Defined and unimplemented to avoid misuse
+   */
+  Ipv4Interface (const Ipv4Interface &o);
+
+  /**
+   * \brief Assignment operator
+   * \param o object to copy
+   * \returns the copied object
+   *
+   * Defined and unimplemented to avoid misuse
+   */
+  Ipv4Interface &operator = (const Ipv4Interface &o);
+
+  /**
    * \brief Initialize interface.
    */
   void DoSetup (void);
@@ -210,6 +237,7 @@ private:
   Ipv4InterfaceAddressList m_ifaddrs; //!< Address list
   Ptr<Node> m_node; //!< The associated node
   Ptr<NetDevice> m_device; //!< The associated NetDevice
+  Ptr<TrafficControlLayer> m_tc; //!< The associated TrafficControlLayer
   Ptr<ArpCache> m_cache; //!< ARP cache
 };
 

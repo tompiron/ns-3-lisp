@@ -64,9 +64,9 @@ TapFdNetDeviceHelper::TapFdNetDeviceHelper ()
 {
   m_deviceName = "";
   m_modePi = false;
-  m_tapIp4 = "";
-  m_tapMask4 = "";
-  m_tapIp6 = "";
+  m_tapIp4 = Ipv4Address::GetZero ();
+  m_tapMask4 = Ipv4Mask::GetZero ();
+  m_tapIp6 = Ipv6Address::GetZero ();
   m_tapPrefix6 = 64;
   m_tapMac = Mac48Address::Allocate ();
 }
@@ -204,7 +204,7 @@ TapFdNetDeviceHelper::CreateFileDescriptor (void) const
       // -I<IPv6-address> The IP v6 address to assign to the new tap device;
       // -n<network-IPv4-mask> The network IPv4 mask to assign to the new tap device;
       // -N<network-IPv6-mask> The network IPv6 mask to assign to the new tap device;
-      // -t Set teh IFF_TAP flag
+      // -t Set the IFF_TAP flag
       // -h Set the IFF_NO_PI flag
       // -p<path> the path to the unix socket described above.
       //
@@ -227,19 +227,19 @@ TapFdNetDeviceHelper::CreateFileDescriptor (void) const
       ossMac << "-m" << m_tapMac;
 
       std::ostringstream ossIp4;
-      if (m_tapIp4 != "")
+      if (m_tapIp4 != Ipv4Address::GetZero ())
         {
           ossIp4 << "-i" << m_tapIp4;
         }
 
       std::ostringstream ossIp6;
-      if (m_tapIp6 != "")
+      if (m_tapIp6 != Ipv6Address::GetZero ())
         {
           ossIp6 << "-I" << m_tapIp6;
         }
 
       std::ostringstream ossNetmask4;
-      if (m_tapMask4 != "" )
+      if (m_tapMask4 != Ipv4Mask::GetZero () )
         {
           ossNetmask4 << "-n" << m_tapMask4;
         }
@@ -279,8 +279,9 @@ TapFdNetDeviceHelper::CreateFileDescriptor (void) const
       // If the execlp successfully completes, it never returns.  If it returns it failed or the OS is
       // broken.  In either case, we bail.
       //
-      NS_FATAL_ERROR ("TapFdNetDeviceHelper::CreateFileDescriptor(): Back from execlp(), errno = " << ::strerror (errno));
-    }
+      NS_FATAL_ERROR ("TapFdNetDeviceHelper::CreateFileDescriptor(): Back from execlp(), status = " <<
+                      status << ", errno = " << ::strerror (errno));
+      }
   else
     {
       NS_LOG_DEBUG ("Parent process");

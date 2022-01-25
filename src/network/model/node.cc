@@ -67,7 +67,7 @@ Node::GetTypeId (void)
                    MakeUintegerAccessor (&Node::m_id),
                    MakeUintegerChecker<uint32_t> ())
     .AddAttribute ("SystemId", "The systemId of this node: a unique integer used for parallel simulations.",
-                   TypeId::ATTR_GET || TypeId::ATTR_SET,
+                   TypeId::ATTR_GET | TypeId::ATTR_SET,
                    UintegerValue (0),
                    MakeUintegerAccessor (&Node::m_sid),
                    MakeUintegerChecker<uint32_t> ())
@@ -108,6 +108,13 @@ Node::GetId (void) const
 {
   NS_LOG_FUNCTION (this);
   return m_id;
+}
+
+Time
+Node::GetLocalTime (void) const
+{
+  NS_LOG_FUNCTION (this);
+  return Simulator::Now ();
 }
 
 uint32_t

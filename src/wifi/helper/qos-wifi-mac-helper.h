@@ -26,6 +26,7 @@
 
 #include <map>
 
+
 namespace ns3 {
 
 /**
@@ -33,6 +34,8 @@ namespace ns3 {
  *
  * This class can create MACs of type ns3::ApWifiMac, ns3::StaWifiMac,
  * and, ns3::AdhocWifiMac, with QosSupported attribute set to True.
+ *
+ * \deprecated This class deprecated and replaced by ns3::WifiMacHelper
  */
 class QosWifiMacHelper : public WifiMacHelper
 {
@@ -50,6 +53,7 @@ public:
 
   /**
    * Create a mac helper in a default working state.
+   * \returns a default QosWifiMacHelper
    */
   static QosWifiMacHelper Default (void);
 
@@ -73,6 +77,12 @@ public:
    * \param v6 the value of the attribute to set
    * \param n7 the name of the attribute to set
    * \param v7 the value of the attribute to set
+   * \param n8 the name of the attribute to set
+   * \param v8 the value of the attribute to set
+   * \param n9 the name of the attribute to set
+   * \param v9 the value of the attribute to set
+   * \param n10 the name of the attribute to set
+   * \param v10 the value of the attribute to set
    *
    * All the attributes specified in this method should exist
    * in the requested mac.
@@ -85,7 +95,10 @@ public:
                         std::string n4 = "", const AttributeValue &v4 = EmptyAttributeValue (),
                         std::string n5 = "", const AttributeValue &v5 = EmptyAttributeValue (),
                         std::string n6 = "", const AttributeValue &v6 = EmptyAttributeValue (),
-                        std::string n7 = "", const AttributeValue &v7 = EmptyAttributeValue ());
+                        std::string n7 = "", const AttributeValue &v7 = EmptyAttributeValue (),
+                        std::string n8 = "", const AttributeValue &v8 = EmptyAttributeValue (),
+                        std::string n9 = "", const AttributeValue &v9 = EmptyAttributeValue (),
+                        std::string n10 = "", const AttributeValue &v10 = EmptyAttributeValue ());
   /**
    * Set the class, type and attributes for the Msdu aggregator
    *
@@ -157,7 +170,7 @@ public:
 
 
 protected:
-  ObjectFactory m_mac;
+  ObjectFactory m_mac; ///< MAC object
 
 
 private:
@@ -167,16 +180,22 @@ private:
    * This method implements the pure virtual method defined in \ref ns3::WifiMacHelper.
    */
   virtual Ptr<WifiMac> Create (void) const;
-  void Setup (Ptr<WifiMac> mac, enum AcIndex ac, std::string dcaAttrName) const;
+  /**
+   * Setup function
+   * \param mac the wifi MAC
+   * \param ac the access category
+   * \param edcaAttrName the EDCA attribute name (VO_EdcaTxopN, VI_EdcaTxopN, BE_EdcaTxopN, BK_EdcaTxopN)
+   */
+  void Setup (Ptr<WifiMac> mac, enum AcIndex ac, std::string edcaAttrName) const;
 
-  std::map<AcIndex, ObjectFactory> m_aggregators;
-  ObjectFactory m_mpduAggregator;
+  std::map<AcIndex, ObjectFactory> m_msduAggregators; ///< A-MSDU aggregators
+  std::map<AcIndex, ObjectFactory> m_mpduAggregators; ///< A-MPDU aggregators
   /*
    * Next maps contain, for every access category, the values for
    * block ack threshold and block ack inactivity timeout.
    */
-  std::map<AcIndex, uint8_t> m_bAckThresholds;
-  std::map<AcIndex, uint16_t> m_bAckInactivityTimeouts;
+  std::map<AcIndex, uint8_t> m_bAckThresholds; ///< Block ACK thresholds
+  std::map<AcIndex, uint16_t> m_bAckInactivityTimeouts; ///< Block ACK inactivity timeouts
 };
 
 } //namespace ns3

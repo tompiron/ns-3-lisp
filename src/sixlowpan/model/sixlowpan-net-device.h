@@ -371,8 +371,7 @@ private:
   typedef std::pair< std::pair<Address, Address>, std::pair<uint16_t, uint16_t> > FragmentKey;
 
   /**
-   * \class Fragments
-   * \brief A Set of Fragment.
+   * \brief A Set of Fragments.
    */
   class Fragments : public SimpleRefCount<Fragments>
   {
@@ -421,6 +420,7 @@ public:
 
     /**
      * \brief Get a list of the current stored fragments.
+     * \returns The current stored fragments.
      */
     std::list< Ptr<Packet> > GetFraments () const;
 

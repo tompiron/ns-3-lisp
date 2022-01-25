@@ -204,6 +204,12 @@ restart:
         }
     }
 }
+bool
+Object::IsInitialized (void) const
+{
+  NS_LOG_FUNCTION (this);
+  return m_initialized;
+}
 void 
 Object::Dispose (void)
 {
@@ -251,13 +257,6 @@ Object::AggregateObject (Ptr<Object> o)
   NS_ASSERT (CheckLoose ());
   NS_ASSERT (o->CheckLoose ());
 
-  if (DoGetObject (o->GetInstanceTypeId ()))
-    {
-      NS_FATAL_ERROR ("Object::AggregateObject(): "
-                      "Multiple aggregation of objects of type " << 
-                      o->GetInstanceTypeId ().GetName ());
-    }
-
   Object *other = PeekPointer (o);
   // first create the new aggregate buffer.
   uint32_t total = m_aggregates->n + other->m_aggregates->n;
@@ -274,6 +273,14 @@ Object::AggregateObject (Ptr<Object> o)
   for (uint32_t i = 0; i < other->m_aggregates->n; i++)
     {
       aggregates->buffer[m_aggregates->n+i] = other->m_aggregates->buffer[i];
+      const TypeId typeId = other->m_aggregates->buffer[i]->GetInstanceTypeId ();
+      if (DoGetObject (typeId))
+        {
+          NS_FATAL_ERROR ("Object::AggregateObject(): "
+                          "Multiple aggregation of objects of type " <<
+                          other->GetInstanceTypeId () <<
+                          " on objects of type " << typeId);
+        }
       UpdateSortedArray (aggregates, m_aggregates->n + i);
     }
 
@@ -291,7 +298,7 @@ Object::AggregateObject (Ptr<Object> o)
     }
 
   // Finally, call NotifyNewAggregate on all the objects aggregates together.
-  // We purposedly use the old aggregate buffers to iterate over the objects
+  // We purposely use the old aggregate buffers to iterate over the objects
   // because this allows us to assume that they will not change from under 
   // our feet, even if our users call AggregateObject from within their
   // NotifyNewAggregate method.
@@ -367,15 +374,18 @@ bool
 Object::CheckLoose (void) const
 {
   NS_LOG_FUNCTION (this);
-  uint32_t refcount = 0;
+  bool nonZeroRefCount = false;
   uint32_t n = m_aggregates->n;
   for (uint32_t i = 0; i < n; i++)
     {
       Object *current = m_aggregates->buffer[i];
-      /// \todo Shortcircuit this loop.
-      refcount += current->GetReferenceCount ();
+      if (current->GetReferenceCount ())
+        {
+          nonZeroRefCount = true;
+          break;
+        }
     }
-  return (refcount > 0);
+  return nonZeroRefCount;
 }
 void
 Object::DoDelete (void)

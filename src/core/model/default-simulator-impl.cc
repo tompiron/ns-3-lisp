@@ -34,7 +34,7 @@
 /**
  * \file
  * \ingroup simulator
- * Implementation of class ns3::DefaultSimulatorImpl.
+ * ns3::DefaultSimulatorImpl implementation.
  */
 
 namespace ns3 {
@@ -69,7 +69,7 @@ DefaultSimulatorImpl::DefaultSimulatorImpl ()
   // before ::Run is entered, the m_currentUid will be zero
   m_currentUid = 0;
   m_currentTs = 0;
-  m_currentContext = 0xffffffff;
+  m_currentContext = Simulator::NO_CONTEXT;
   m_unscheduledEvents = 0;
   m_eventsWithContextEmpty = true;
   m_main = SystemThread::Self();
@@ -403,8 +403,6 @@ DefaultSimulatorImpl::IsExpired (const EventId &id) const
 Time 
 DefaultSimulatorImpl::GetMaximumSimulationTime (void) const
 {
-  /// \todo I am fairly certain other compilers use other non-standard
-  /// post-fixes to indicate 64 bit constants.
   return TimeStep (0x7fffffffffffffffLL);
 }
 

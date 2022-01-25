@@ -35,6 +35,12 @@ namespace ns3 {
 
 NS_LOG_COMPONENT_DEFINE ("AlohaNoackNetDevice");
 
+/**
+ * \brief Output stream operator
+ * \param os output stream
+ * \param state the state to print
+ * \return an output stream
+ */
 std::ostream& operator<< (std::ostream& os, AlohaNoackNetDevice::State state)
 {
   switch (state)
@@ -71,7 +77,7 @@ AlohaNoackNetDevice::GetTypeId (void)
                    "packets being transmitted get queued here",
                    PointerValue (),
                    MakePointerAccessor (&AlohaNoackNetDevice::m_queue),
-                   MakePointerChecker<Queue> ())
+                   MakePointerChecker<Queue<Packet> > ())
     .AddAttribute ("Mtu", "The Maximum Transmission Unit",
                    UintegerValue (1500),
                    MakeUintegerAccessor (&AlohaNoackNetDevice::SetMtu,
@@ -167,7 +173,7 @@ AlohaNoackNetDevice::GetMtu (void) const
 
 
 void
-AlohaNoackNetDevice::SetQueue (Ptr<Queue> q)
+AlohaNoackNetDevice::SetQueue (Ptr<Queue<Packet> > q)
 {
   NS_LOG_FUNCTION (q);
   m_queue = q;
@@ -428,8 +434,9 @@ AlohaNoackNetDevice::NotifyTransmissionEnd (Ptr<const Packet>)
   NS_ASSERT (m_queue);
   if (m_queue->IsEmpty () == false)
     {
-      m_currentPkt = m_queue->Dequeue ();
-      NS_ASSERT (m_currentPkt);
+      Ptr<Packet> p = m_queue->Dequeue ();
+      NS_ASSERT (p);
+      m_currentPkt = p;
       NS_LOG_LOGIC ("scheduling transmission now");
       Simulator::ScheduleNow (&AlohaNoackNetDevice::StartTransmission, this);
     }

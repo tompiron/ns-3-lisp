@@ -23,6 +23,7 @@
 #include <utility>
 #include <iostream>
 #include "assert.h"
+#include <stdexcept>
 #include "ns3/core-config.h"
 #include "fatal-error.h"
 
@@ -37,7 +38,7 @@
 /**
  * \file
  * \ingroup logging
- * Debug message logging implementation.
+ * ns3::LogComponent and related implementations.
  */
 
 
@@ -128,6 +129,23 @@ LogComponent::LogComponent (const std::string & name,
         }
     }
   components->insert (std::make_pair (name, this));
+}
+
+LogComponent &
+GetLogComponent (const std::string name)
+{
+  LogComponent::ComponentList *components = LogComponent::GetComponentList ();
+  LogComponent* ret;
+
+  try
+    {
+      ret = components->at (name);
+    }
+  catch (std::out_of_range&)
+    {
+      NS_FATAL_ERROR ("Log component \"" << name << "\" does not exist.");
+    }
+  return *ret;
 }
 
 void
@@ -484,7 +502,7 @@ LogComponentPrintList (void)
 }
 
 /**
- * \ingroup
+ * \ingroup logging
  * Check if a log component exists.
  * This is private to the logging implementation.
  *
@@ -511,6 +529,7 @@ static bool ComponentExists(std::string componentName)
 }
 
 /**
+ * \ingroup logging
  * Parse the \c NS_LOG environment variable.
  * This is private to the logging implementation.
  */
@@ -635,6 +654,30 @@ ParameterLogger::ParameterLogger (std::ostream &os)
   : m_first (true),
     m_os (os)
 {
+}
+
+template<>
+ParameterLogger&
+ParameterLogger::operator<< <std::string>(const std::string param)
+{
+  if (m_first)
+    {
+      m_os << "\"" << param << "\"";
+      m_first = false;
+    }
+  else
+    {
+      m_os << ", \"" << param << "\"";
+    }
+  return *this;
+}
+
+template<>
+ParameterLogger&
+ParameterLogger::operator<< <const char *>(const char * param)
+{
+  (*this) << std::string (param);
+  return *this;
 }
 
 } // namespace ns3

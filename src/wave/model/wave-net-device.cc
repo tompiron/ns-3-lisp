@@ -18,13 +18,10 @@
  *         Junling Bu <linlinjavaer@gmail.com>
  */
 #include <algorithm>
-#include "ns3/wifi-channel.h"
+#include "ns3/wifi-phy.h"
 #include "ns3/llc-snap-header.h"
-#include "ns3/uinteger.h"
-#include "ns3/node.h"
-#include "ns3/trace-source-accessor.h"
 #include "ns3/log.h"
-#include "ns3/qos-tag.h"
+#include "ns3/socket.h"
 #include "ns3/object-map.h"
 #include "ns3/object-vector.h"
 #include "wave-net-device.h"
@@ -51,7 +48,7 @@ WaveNetDevice::GetTypeId (void)
     .AddAttribute ("Channel", "The channel attached to this device",
                    PointerValue (),
                    MakePointerAccessor (&WaveNetDevice::GetChannel),
-                   MakePointerChecker<WifiChannel> ())
+                   MakePointerChecker<Channel> ())
     .AddAttribute ("PhyEntities", "The PHY entities attached to this device.",
                    ObjectVectorValue (),
                    MakeObjectVectorAccessor (&WaveNetDevice::m_phyEntities),
@@ -411,6 +408,7 @@ WaveNetDevice::SendX (Ptr<Packet> packet, const Address & dest, uint32_t protoco
       txVector.SetChannelWidth (10);
       txVector.SetTxPowerLevel (txInfo.txPowerLevel);
       txVector.SetMode (txInfo.dataRate);
+      txVector.SetPreambleType (txInfo.preamble);
       HigherLayerTxVectorTag tag = HigherLayerTxVectorTag (txVector, false);
       packet->AddPacketTag (tag);
     }
@@ -421,8 +419,9 @@ WaveNetDevice::SendX (Ptr<Packet> packet, const Address & dest, uint32_t protoco
 
   // according to channel number and priority,
   // route the packet to a proper queue.
-  QosTag qos = QosTag (txInfo.priority);
-  packet->AddPacketTag (qos);
+  SocketPriorityTag prio;
+  prio.SetPriority (txInfo.priority);
+  packet->ReplacePacketTag (prio);
   Ptr<WifiMac> mac = GetMac (txInfo.channelNumber);
   Mac48Address realTo = Mac48Address::ConvertFrom (dest);
   mac->NotifyTx (packet);
@@ -617,6 +616,7 @@ WaveNetDevice::Send (Ptr<Packet> packet, const Address& dest, uint16_t protocol)
       WifiTxVector txVector;
       txVector.SetTxPowerLevel (m_txProfile->txPowerLevel);
       txVector.SetMode (m_txProfile->dataRate);
+      txVector.SetPreambleType (m_txProfile->preamble);
       HigherLayerTxVectorTag tag = HigherLayerTxVectorTag (txVector, m_txProfile->adaptable);
       packet->AddPacketTag (tag);
     }

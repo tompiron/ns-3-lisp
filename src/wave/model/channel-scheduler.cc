@@ -25,6 +25,10 @@ NS_LOG_COMPONENT_DEFINE ("ChannelScheduler");
 
 NS_OBJECT_ENSURE_REGISTERED (ChannelScheduler);
 
+  /**
+   * \brief Get the type ID.
+   * \return the object TypeId
+   */
 TypeId
 ChannelScheduler::GetTypeId (void)
 {
@@ -119,7 +123,7 @@ ChannelScheduler::StartSch (const SchInfo & schInfo)
   uint32_t extends = schInfo.extendedAccess;
   bool immediate = schInfo.immediateAccess;
   Ptr<OcbWifiMac> mac = m_device->GetMac (cn);
-  for (EdcaParameterSetI i = schInfo.edcaParameterSet.begin (); i != schInfo.edcaParameterSet.end (); ++i)
+  for (EdcaParametersI i = schInfo.edcaParameters.begin (); i != schInfo.edcaParameters.end (); ++i)
     {
       EdcaParameter edca = i->second;
       mac->ConfigureEdca (edca.cwmin, edca.cwmax, edca.aifsn, i->first);

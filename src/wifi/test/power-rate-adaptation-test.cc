@@ -21,27 +21,19 @@
 #include "ns3/wifi-net-device.h"
 #include "ns3/yans-wifi-channel.h"
 #include "ns3/adhoc-wifi-mac.h"
-#include "ns3/yans-wifi-phy.h"
-#include "ns3/parf-wifi-manager.h"
-#include "ns3/propagation-delay-model.h"
-#include "ns3/propagation-loss-model.h"
-#include "ns3/error-rate-model.h"
-#include "ns3/yans-error-rate-model.h"
 #include "ns3/constant-position-mobility-model.h"
-#include "ns3/node.h"
 #include "ns3/simulator.h"
 #include "ns3/test.h"
-#include "ns3/object-factory.h"
-#include "ns3/dca-txop.h"
-#include "ns3/mac-rx-middle.h"
-#include "ns3/pointer.h"
-#include "ns3/rng-seed-manager.h"
-#include "ns3/edca-txop-n.h"
-#include "ns3/config.h"
-#include "ns3/boolean.h"
+#include "ns3/double.h"
 
 using namespace ns3;
 
+/**
+ * \ingroup wifi-test
+ * \ingroup tests
+ *
+ * \brief Power Rate Adaptation Test
+ */
 class PowerRateAdaptationTest : public TestCase
 {
 public:
@@ -49,11 +41,19 @@ public:
 
   virtual void DoRun (void);
 private:
+  /// Test parf function
   void TestParf ();
+  /// Test aparf function
   void TestAparf ();
+  /// Test rrpaa function
+  void TestRrpaa ();
+  /**
+   * Configure nde function
+   * \returns the node
+   */
   Ptr<Node> ConfigureNode ();
 
-  ObjectFactory m_manager;
+  ObjectFactory m_manager; ///< manager
 };
 
 PowerRateAdaptationTest::PowerRateAdaptationTest ()
@@ -150,11 +150,11 @@ PowerRateAdaptationTest::TestParf ()
   /*
    * Parf initiates with maximal rate and power.
    */
-  WifiTxVector txVector = manager->GetDataTxVector (remoteAddress,&packetHeader,packet,packet->GetSize ());
+  WifiTxVector txVector = manager->GetDataTxVector (remoteAddress, &packetHeader, packet);
   WifiMode mode = txVector.GetMode ();
   int power = (int) txVector.GetTxPowerLevel ();
 
-  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth (), txVector.IsShortGuardInterval (), 1), 54000000, "PARF: Initial data rate wrong");
+  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth ()), 54000000, "PARF: Initial data rate wrong");
   NS_TEST_ASSERT_MSG_EQ (power, 17, "PARF: Initial power level wrong");
 
   //-----------------------------------------------------------------------------------------------------
@@ -168,11 +168,11 @@ PowerRateAdaptationTest::TestParf ()
       manager->ReportDataOk (remoteAddress, &packetHeader, 0, ackMode, 0);
     }
 
-  txVector = manager->GetDataTxVector (remoteAddress,&packetHeader,packet,packet->GetSize ());
+  txVector = manager->GetDataTxVector (remoteAddress, &packetHeader, packet);
   mode = txVector.GetMode ();
   power = (int) txVector.GetTxPowerLevel ();
 
-  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth (), txVector.IsShortGuardInterval (), 1), 54000000, "PARF: Incorrect vale of data rate");
+  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth ()), 54000000, "PARF: Incorrect vale of data rate");
   NS_TEST_ASSERT_MSG_EQ (power, 16, "PARF: Incorrect value of power level");
 
   //-----------------------------------------------------------------------------------------------------
@@ -181,13 +181,13 @@ PowerRateAdaptationTest::TestParf ()
    * As we are using recovery power, one failure make power increase.
    *
    */
-  manager->ReportDataFailed (remoteAddress,&packetHeader);
+  manager->ReportDataFailed (remoteAddress, &packetHeader);
 
-  txVector = manager->GetDataTxVector (remoteAddress,&packetHeader,packet,packet->GetSize ());
+  txVector = manager->GetDataTxVector (remoteAddress, &packetHeader, packet);
   mode = txVector.GetMode ();
   power = (int) txVector.GetTxPowerLevel ();
 
-  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth (), txVector.IsShortGuardInterval (), 1), 54000000, "PARF: Incorrect vale of data rate");
+  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth ()), 54000000, "PARF: Incorrect vale of data rate");
   NS_TEST_ASSERT_MSG_EQ (power, 17, "PARF: Incorrect value of power level");
 
   //-----------------------------------------------------------------------------------------------------
@@ -199,15 +199,15 @@ PowerRateAdaptationTest::TestParf ()
   for (int i = 0; i < 7; i++)
     {
       manager->ReportDataOk (remoteAddress, &packetHeader, 0, ackMode, 0);
-      manager->ReportDataFailed (remoteAddress,&packetHeader);
+      manager->ReportDataFailed (remoteAddress, &packetHeader);
     }
   manager->ReportDataOk (remoteAddress, &packetHeader, 0, ackMode, 0);
 
-  txVector = manager->GetDataTxVector (remoteAddress,&packetHeader,packet,packet->GetSize ());
+  txVector = manager->GetDataTxVector (remoteAddress, &packetHeader, packet);
   mode = txVector.GetMode ();
   power = (int) txVector.GetTxPowerLevel ();
 
-  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth (), txVector.IsShortGuardInterval (), 1), 54000000, "PARF: Incorrect vale of data rate");
+  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth ()), 54000000, "PARF: Incorrect vale of data rate");
   NS_TEST_ASSERT_MSG_EQ (power, 16, "PARF: Incorrect value of power level");
 
   //-----------------------------------------------------------------------------------------------------
@@ -216,13 +216,13 @@ PowerRateAdaptationTest::TestParf ()
    * As we are using recovery power, one failure make power increase. recoveryPower=false.
    */
 
-  manager->ReportDataFailed (remoteAddress,&packetHeader);
+  manager->ReportDataFailed (remoteAddress, &packetHeader);
 
-  txVector = manager->GetDataTxVector (remoteAddress,&packetHeader,packet,packet->GetSize ());
+  txVector = manager->GetDataTxVector (remoteAddress, &packetHeader, packet);
   mode = txVector.GetMode ();
   power = (int) txVector.GetTxPowerLevel ();
 
-  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth (), txVector.IsShortGuardInterval (), 1), 54000000, "PARF: Incorrect vale of data rate");
+  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth ()), 54000000, "PARF: Incorrect vale of data rate");
   NS_TEST_ASSERT_MSG_EQ (power, 17, "PARF: Incorrect value of power level");
 
   //-----------------------------------------------------------------------------------------------------
@@ -231,14 +231,14 @@ PowerRateAdaptationTest::TestParf ()
    * After two consecutive fails the rate is decreased or the power increased.
    * As we are at maximal power, the rate should be decreased.
    */
-  manager->ReportDataFailed (remoteAddress,&packetHeader);
-  manager->ReportDataFailed (remoteAddress,&packetHeader);
+  manager->ReportDataFailed (remoteAddress, &packetHeader);
+  manager->ReportDataFailed (remoteAddress, &packetHeader);
 
-  txVector = manager->GetDataTxVector (remoteAddress,&packetHeader,packet,packet->GetSize ());
+  txVector = manager->GetDataTxVector (remoteAddress, &packetHeader, packet);
   mode = txVector.GetMode ();
   power = (int) txVector.GetTxPowerLevel ();
 
-  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth (), txVector.IsShortGuardInterval (), 1), 48000000, "PARF: Incorrect vale of data rate");
+  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth ()), 48000000, "PARF: Incorrect vale of data rate");
   NS_TEST_ASSERT_MSG_EQ (power, 17, "PARF: Incorrect value of power level");
 
   //-----------------------------------------------------------------------------------------------------
@@ -252,11 +252,11 @@ PowerRateAdaptationTest::TestParf ()
       manager->ReportDataOk (remoteAddress, &packetHeader, 0, ackMode, 0);
     }
 
-  txVector = manager->GetDataTxVector (remoteAddress,&packetHeader,packet,packet->GetSize ());
+  txVector = manager->GetDataTxVector (remoteAddress, &packetHeader, packet);
   mode = txVector.GetMode ();
   power = (int) txVector.GetTxPowerLevel ();
 
-  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth (), txVector.IsShortGuardInterval (), 1), 54000000, "PARF: Incorrect vale of data rate");
+  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth ()), 54000000, "PARF: Incorrect vale of data rate");
   NS_TEST_ASSERT_MSG_EQ (power, 17, "PARF: Incorrect value of power level");
 
   //-----------------------------------------------------------------------------------------------------
@@ -265,13 +265,13 @@ PowerRateAdaptationTest::TestParf ()
    * As we are using recovery rate, one failure make rate decrease. recoveryRate=false.
    */
 
-  manager->ReportDataFailed (remoteAddress,&packetHeader);
+  manager->ReportDataFailed (remoteAddress, &packetHeader);
 
-  txVector = manager->GetDataTxVector (remoteAddress,&packetHeader,packet,packet->GetSize ());
+  txVector = manager->GetDataTxVector (remoteAddress, &packetHeader, packet);
   mode = txVector.GetMode ();
   power = (int) txVector.GetTxPowerLevel ();
 
-  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth (), txVector.IsShortGuardInterval (), 1), 48000000, "PARF: Incorrect vale of data rate");
+  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth ()), 48000000, "PARF: Incorrect vale of data rate");
   NS_TEST_ASSERT_MSG_EQ (power, 17, "PARF: Incorrect value of power level");
 
   //-----------------------------------------------------------------------------------------------------
@@ -285,11 +285,11 @@ PowerRateAdaptationTest::TestParf ()
       manager->ReportDataOk (remoteAddress, &packetHeader, 0, ackMode, 0);
     }
 
-  txVector = manager->GetDataTxVector (remoteAddress,&packetHeader,packet,packet->GetSize ());
+  txVector = manager->GetDataTxVector (remoteAddress, &packetHeader, packet);
   mode = txVector.GetMode ();
   power = (int) txVector.GetTxPowerLevel ();
 
-  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth (), txVector.IsShortGuardInterval (), 1), 54000000, "PARF: Incorrect vale of data rate");
+  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth ()), 54000000, "PARF: Incorrect vale of data rate");
   NS_TEST_ASSERT_MSG_EQ (power, 17, "PARF: Incorrect value of power level");
 
   //-----------------------------------------------------------------------------------------------------
@@ -303,11 +303,11 @@ PowerRateAdaptationTest::TestParf ()
       manager->ReportDataOk (remoteAddress, &packetHeader, 0, ackMode, 0);
     }
 
-  txVector = manager->GetDataTxVector (remoteAddress,&packetHeader,packet,packet->GetSize ());
+  txVector = manager->GetDataTxVector (remoteAddress, &packetHeader, packet);
   mode = txVector.GetMode ();
   power = (int) txVector.GetTxPowerLevel ();
 
-  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth (), txVector.IsShortGuardInterval (), 1), 54000000, "PARF: Incorrect vale of data rate");
+  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth ()), 54000000, "PARF: Incorrect vale of data rate");
   NS_TEST_ASSERT_MSG_EQ (power, 16, "PARF: Incorrect value of power level");
 
   //-----------------------------------------------------------------------------------------------------
@@ -323,18 +323,14 @@ PowerRateAdaptationTest::TestParf ()
       manager->ReportDataFailed (remoteAddress,&packetHeader);
     }
 
-  txVector = manager->GetDataTxVector (remoteAddress,&packetHeader,packet,packet->GetSize ());
+  txVector = manager->GetDataTxVector (remoteAddress, &packetHeader, packet);
   mode = txVector.GetMode ();
   power = (int) txVector.GetTxPowerLevel ();
 
-  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth (), txVector.IsShortGuardInterval (), 1), 54000000, "PARF: Incorrect vale of data rate");
+  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth ()), 54000000, "PARF: Incorrect vale of data rate");
   NS_TEST_ASSERT_MSG_EQ (power, 17, "PARF: Incorrect value of power level");
 
-  Simulator::Stop (Seconds (10.0));
-
-  Simulator::Run ();
   Simulator::Destroy ();
-
 }
 
 void
@@ -348,8 +344,8 @@ PowerRateAdaptationTest::TestAparf ()
   /*
    * Configure thresholds for rate and power control.
    */
-  manager->SetAttribute ("SuccessThreshold 1",UintegerValue (3));
-  manager->SetAttribute ("SuccessThreshold 2",UintegerValue (10));
+  manager->SetAttribute ("SuccessThreshold1",UintegerValue (3));
+  manager->SetAttribute ("SuccessThreshold2",UintegerValue (10));
   manager->SetAttribute ("FailThreshold",UintegerValue (1));
   manager->SetAttribute ("PowerThreshold",UintegerValue (10));
 
@@ -374,11 +370,11 @@ PowerRateAdaptationTest::TestAparf ()
   /*
    * Aparf initiates with maximal rate and power.
    */
-  WifiTxVector txVector = manager->GetDataTxVector (remoteAddress,&packetHeader,packet,packet->GetSize ());
+  WifiTxVector txVector = manager->GetDataTxVector (remoteAddress, &packetHeader, packet);
   WifiMode mode = txVector.GetMode ();
   int power = (int) txVector.GetTxPowerLevel ();
 
-  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth (), txVector.IsShortGuardInterval (), 1), 54000000, "APARF: Initial data rate wrong");
+  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth ()), 54000000, "APARF: Initial data rate wrong");
   NS_TEST_ASSERT_MSG_EQ (power, 17, "APARF: Initial power level wrong");
 
   //-----------------------------------------------------------------------------------------------------
@@ -393,11 +389,11 @@ PowerRateAdaptationTest::TestAparf ()
       manager->ReportDataOk (remoteAddress, &packetHeader, 0, ackMode, 0);
     }
 
-  txVector = manager->GetDataTxVector (remoteAddress,&packetHeader,packet,packet->GetSize ());
+  txVector = manager->GetDataTxVector (remoteAddress, &packetHeader, packet);
   mode = txVector.GetMode ();
   power = (int) txVector.GetTxPowerLevel ();
 
-  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth (), txVector.IsShortGuardInterval (), 1), 54000000, "APARF: Incorrect vale of data rate");
+  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth ()), 54000000, "APARF: Incorrect vale of data rate");
   NS_TEST_ASSERT_MSG_EQ (power, 16, "APARF: Incorrect value of power level");
 
   //-----------------------------------------------------------------------------------------------------
@@ -406,13 +402,13 @@ PowerRateAdaptationTest::TestAparf ()
    * One failure make the power to be increased again.
    * Change to state Low.
    */
-  manager->ReportDataFailed (remoteAddress,&packetHeader);
+  manager->ReportDataFailed (remoteAddress, &packetHeader);
 
-  txVector = manager->GetDataTxVector (remoteAddress,&packetHeader,packet,packet->GetSize ());
+  txVector = manager->GetDataTxVector (remoteAddress, &packetHeader, packet);
   mode = txVector.GetMode ();
   power = (int) txVector.GetTxPowerLevel ();
 
-  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth (), txVector.IsShortGuardInterval (), 1), 54000000, "APARF: Incorrect vale of data rate");
+  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth ()), 54000000, "APARF: Incorrect vale of data rate");
   NS_TEST_ASSERT_MSG_EQ (power, 17, "APARF: Incorrect value of power level");
 
   //-----------------------------------------------------------------------------------------------------
@@ -427,11 +423,11 @@ PowerRateAdaptationTest::TestAparf ()
       manager->ReportDataOk (remoteAddress, &packetHeader, 0, ackMode, 0);
     }
 
-  txVector = manager->GetDataTxVector (remoteAddress,&packetHeader,packet,packet->GetSize ());
+  txVector = manager->GetDataTxVector (remoteAddress, &packetHeader, packet);
   mode = txVector.GetMode ();
   power = (int) txVector.GetTxPowerLevel ();
 
-  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth (), txVector.IsShortGuardInterval (), 1), 54000000, "APARF: Incorrect vale of data rate");
+  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth ()), 54000000, "APARF: Incorrect vale of data rate");
   NS_TEST_ASSERT_MSG_EQ (power, 16, "APARF: Incorrect value of power level");
 
   //-----------------------------------------------------------------------------------------------------
@@ -446,11 +442,11 @@ PowerRateAdaptationTest::TestAparf ()
       manager->ReportDataOk (remoteAddress, &packetHeader, 0, ackMode, 0);
     }
 
-  txVector = manager->GetDataTxVector (remoteAddress,&packetHeader,packet,packet->GetSize ());
+  txVector = manager->GetDataTxVector (remoteAddress, &packetHeader, packet);
   mode = txVector.GetMode ();
   power = (int) txVector.GetTxPowerLevel ();
 
-  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth (), txVector.IsShortGuardInterval (), 1), 54000000, "APARF: Incorrect vale of data rate");
+  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth ()), 54000000, "APARF: Incorrect vale of data rate");
   NS_TEST_ASSERT_MSG_EQ (power, 15, "APARF: Incorrect value of power level");
 
   //-----------------------------------------------------------------------------------------------------
@@ -464,11 +460,11 @@ PowerRateAdaptationTest::TestAparf ()
       manager->ReportDataOk (remoteAddress, &packetHeader, 0, ackMode, 0);
     }
 
-  txVector = manager->GetDataTxVector (remoteAddress,&packetHeader,packet,packet->GetSize ());
+  txVector = manager->GetDataTxVector (remoteAddress, &packetHeader, packet);
   mode = txVector.GetMode ();
   power = (int) txVector.GetTxPowerLevel ();
 
-  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth (), txVector.IsShortGuardInterval (), 1), 54000000, "APARF: Incorrect vale of data rate");
+  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth ()), 54000000, "APARF: Incorrect vale of data rate");
   NS_TEST_ASSERT_MSG_EQ (power, 0, "APARF: Incorrect value of power level");
 
   //-----------------------------------------------------------------------------------------------------
@@ -479,11 +475,11 @@ PowerRateAdaptationTest::TestAparf ()
    */
   manager->ReportDataFailed (remoteAddress,&packetHeader);
 
-  txVector = manager->GetDataTxVector (remoteAddress,&packetHeader,packet,packet->GetSize ());
+  txVector = manager->GetDataTxVector (remoteAddress, &packetHeader, packet);
   mode = txVector.GetMode ();
   power = (int) txVector.GetTxPowerLevel ();
 
-  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth (), txVector.IsShortGuardInterval (), 1), 54000000, "Incorrect vale of data rate");
+  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth ()), 54000000, "Incorrect vale of data rate");
   NS_TEST_ASSERT_MSG_EQ (power, 1, "Incorrect value of power level");
 
   //-----------------------------------------------------------------------------------------------------
@@ -497,11 +493,11 @@ PowerRateAdaptationTest::TestAparf ()
       manager->ReportDataFailed (remoteAddress,&packetHeader);
     }
 
-  txVector = manager->GetDataTxVector (remoteAddress,&packetHeader,packet,packet->GetSize ());
+  txVector = manager->GetDataTxVector (remoteAddress, &packetHeader, packet);
   mode = txVector.GetMode ();
   power = (int) txVector.GetTxPowerLevel ();
 
-  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth (), txVector.IsShortGuardInterval (), 1), 54000000, "APARF: Incorrect vale of data rate");
+  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth ()), 54000000, "APARF: Incorrect vale of data rate");
   NS_TEST_ASSERT_MSG_EQ (power, 17, "APARF: Incorrect value of power level");
 
   //-----------------------------------------------------------------------------------------------------
@@ -513,11 +509,11 @@ PowerRateAdaptationTest::TestAparf ()
    */
   manager->ReportDataFailed (remoteAddress,&packetHeader);
 
-  txVector = manager->GetDataTxVector (remoteAddress,&packetHeader,packet,packet->GetSize ());
+  txVector = manager->GetDataTxVector (remoteAddress, &packetHeader, packet);
   mode = txVector.GetMode ();
   power = (int) txVector.GetTxPowerLevel ();
 
-  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth (), txVector.IsShortGuardInterval (), 1), 48000000, "Incorrect vale of data rate");
+  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth ()), 48000000, "Incorrect vale of data rate");
   NS_TEST_ASSERT_MSG_EQ (power, 17, "Incorrect value of power level");
 
   //-----------------------------------------------------------------------------------------------------
@@ -531,11 +527,11 @@ PowerRateAdaptationTest::TestAparf ()
       manager->ReportDataOk (remoteAddress, &packetHeader, 0, ackMode, 0);
     }
 
-  txVector = manager->GetDataTxVector (remoteAddress,&packetHeader,packet,packet->GetSize ());
+  txVector = manager->GetDataTxVector (remoteAddress, &packetHeader, packet);
   mode = txVector.GetMode ();
   power = (int) txVector.GetTxPowerLevel ();
 
-  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth (), txVector.IsShortGuardInterval (), 1), 48000000, "APARF: Incorrect vale of data rate");
+  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth ()), 48000000, "APARF: Incorrect vale of data rate");
   NS_TEST_ASSERT_MSG_EQ (power, 16, "APARF: Incorrect value of power level");
 
   //-----------------------------------------------------------------------------------------------------
@@ -551,11 +547,11 @@ PowerRateAdaptationTest::TestAparf ()
       manager->ReportDataOk (remoteAddress, &packetHeader, 0, ackMode, 0);
     }
 
-  txVector = manager->GetDataTxVector (remoteAddress,&packetHeader,packet,packet->GetSize ());
+  txVector = manager->GetDataTxVector (remoteAddress, &packetHeader, packet);
   mode = txVector.GetMode ();
   power = (int) txVector.GetTxPowerLevel ();
 
-  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth (), txVector.IsShortGuardInterval (), 1), 48000000, "APARF: Incorrect vale of data rate");
+  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth ()), 48000000, "APARF: Incorrect vale of data rate");
   NS_TEST_ASSERT_MSG_EQ (power, 7, "APARF: Incorrect value of power level");
 
   for (int i = 0; i < 3; i++)
@@ -563,12 +559,442 @@ PowerRateAdaptationTest::TestAparf ()
       manager->ReportDataOk (remoteAddress, &packetHeader, 0, ackMode, 0);
     }
 
-  txVector = manager->GetDataTxVector (remoteAddress,&packetHeader,packet,packet->GetSize ());
+  txVector = manager->GetDataTxVector (remoteAddress, &packetHeader, packet);
   mode = txVector.GetMode ();
   power = (int) txVector.GetTxPowerLevel ();
 
-  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth (), txVector.IsShortGuardInterval (), 1), 54000000, "APARF: Incorrect vale of data rate");
+  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth ()), 54000000, "APARF: Incorrect vale of data rate");
   NS_TEST_ASSERT_MSG_EQ (power, 17, "APARF: Incorrect value of power level");
+
+  Simulator::Destroy ();
+}
+
+void
+PowerRateAdaptationTest::TestRrpaa ()
+{
+  m_manager.SetTypeId ("ns3::RrpaaWifiManager");
+  Ptr<Node> node = ConfigureNode ();
+  Ptr<WifiNetDevice> dev = DynamicCast<WifiNetDevice> (node->GetDevice (0));
+  Ptr<WifiRemoteStationManager> manager = dev->GetRemoteStationManager ();
+
+  /*
+   * Configure constants for rate and power control.
+   */
+  manager->SetAttribute ("Basic", BooleanValue (true));
+  manager->SetAttribute ("Alpha", DoubleValue (1.25));
+  manager->SetAttribute ("Beta", DoubleValue (2));
+  manager->SetAttribute ("Tau", DoubleValue (0.015));
+  /*
+   * Constants for the Probabilistic Decision Table.
+   * We set both to 1 to avoid random behaviour in tests.
+   */
+  manager->SetAttribute ("Gamma", DoubleValue (1));
+  manager->SetAttribute ("Delta", DoubleValue (1));
+
+  /*
+   * Create a dummy packet to simulate transmission.
+   */
+  Mac48Address remoteAddress = Mac48Address::Allocate ();
+  WifiMacHeader packetHeader;
+  packetHeader.SetTypeData ();
+  packetHeader.SetQosTid (0);
+  Ptr<Packet> packet = Create<Packet> (10);
+  WifiMode ackMode;
+
+  /*
+   * To initialize the manager we need to generate a transmission.
+   */
+  Ptr<Packet> p = Create<Packet> ();
+  dev->Send (p, remoteAddress, 1);
+
+  /**
+   * This will be the thresholds table.
+   * The parameters of the table are:
+   * - Estimation Window Size (EWND)
+   * - Maximum Tolerable Loss Probability Threshold (MTL)
+   * - Opportunistic Rate Increase (and Power Decrease) Probability Threshold (ORI)
+   *
+   * We also calculate the needed success and failures to generate
+   * a rate or power change:
+   * Rate Increase or Power Decrease limits (RI-PD)
+   * Rate Decrease or Power Increase limits (RD-PI)
+   * Power Decrease limits (PD)
+   *
+   * Mode	           EWND  MTL       ORI        RI-PD  RD-PI  PD
+   *                                            succ   fails  succ fails
+   * OfdmRate6Mbps   8     1         0.19861    7      8      2
+   * OfdmRate9Mbps   11    0.397219  0.14556    10     5      7    2
+   * OfdmRate12Mbps  15    0.291121  0.189753   13     5      11   3
+   * OfdmRate18Mbps  21    0.379507  0.13624    19     8      14   3
+   * OfdmRate24Mbps  27    0.27248   0.174216   23     8      20   5
+   * OfdmRate36Mbps  37    0.348432  0.120773   33     13     25   5
+   * OfdmRate48Mbps  45    0.241546  0.0523952  43     11     35   3
+   * OfdmRate54Mbps  50    0.10479   0          50     6      45   5
+   *
+   */
+
+  //-----------------------------------------------------------------------------------------------------
+
+  /*
+   * RRPAA initiates with minimal rate and maximal power.
+   */
+  WifiTxVector txVector = manager->GetDataTxVector (remoteAddress, &packetHeader, packet);
+  WifiMode mode = txVector.GetMode ();
+  int power = (int) txVector.GetTxPowerLevel ();
+
+  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth (), txVector.GetGuardInterval (), 1), 6000000, "RRPAA: Initial data rate wrong"); //802.11a minimal rate is 6Mbps
+  NS_TEST_ASSERT_MSG_EQ (power, 17, "RRPAA: Initial power level wrong");
+
+  //-----------------------------------------------------------------------------------------------------
+
+  /*
+   * As RRPAA starts with the 6Mbps rate, 7 successful transmissions are needed for RRPAA to increase rate.
+   * 1/8 = 0.125
+   */
+
+  /**
+   * Test that 6 is not enough.
+   */
+  for (int i = 0; i < 6; i++)
+    {
+      manager->ReportDataOk (remoteAddress, &packetHeader, 0, ackMode, 0);
+    }
+
+  txVector = manager->GetDataTxVector (remoteAddress, &packetHeader, packet);
+  mode = txVector.GetMode ();
+  power = (int) txVector.GetTxPowerLevel ();
+
+  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth (), txVector.GetGuardInterval (), 1), 6000000, "RRPAA: Incorrect vale of data rate");
+  NS_TEST_ASSERT_MSG_EQ (power, 17, "RRPAA: Incorrect value of power level");
+
+  /**
+   * Test that 7 is enough.
+   */
+  manager->ReportDataOk (remoteAddress, &packetHeader, 0, ackMode, 0);
+
+  txVector = manager->GetDataTxVector (remoteAddress, &packetHeader, packet);
+  mode = txVector.GetMode ();
+  power = (int) txVector.GetTxPowerLevel ();
+
+  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth (), txVector.GetGuardInterval (), 1), 9000000, "RRPAA: Incorrect vale of data rate");
+  NS_TEST_ASSERT_MSG_EQ (power, 17, "RRPAA: Incorrect value of power level");
+
+  //-----------------------------------------------------------------------------------------------------
+
+  /*
+   * 5 failures are needed to make the rate decrease again.
+   * 5/11 = 0.45
+   */
+  for (int i = 0; i < 4; i++)
+    {
+      manager->ReportDataFailed (remoteAddress,&packetHeader);
+    }
+
+  txVector = manager->GetDataTxVector (remoteAddress, &packetHeader, packet);
+  mode = txVector.GetMode ();
+  power = (int) txVector.GetTxPowerLevel ();
+
+  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth (), txVector.GetGuardInterval (), 1), 9000000, "RRPAA: Incorrect vale of data rate");
+  NS_TEST_ASSERT_MSG_EQ (power, 17, "RRPAA: Incorrect value of power level");
+
+  manager->ReportDataFailed (remoteAddress,&packetHeader);
+
+  txVector = manager->GetDataTxVector (remoteAddress, &packetHeader, packet);
+  mode = txVector.GetMode ();
+  power = (int) txVector.GetTxPowerLevel ();
+
+  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth (), txVector.GetGuardInterval (), 1), 6000000, "RRPAA: Incorrect vale of data rate");
+  NS_TEST_ASSERT_MSG_EQ (power, 17, "RRPAA: Incorrect value of power level");
+
+  //-----------------------------------------------------------------------------------------------------
+
+  /**
+   * Increase rate until maximal rate.
+   */
+
+  for (int i = 0; i < 7; i++)
+    {
+      manager->ReportDataOk (remoteAddress, &packetHeader, 0, ackMode, 0);
+    }
+
+  txVector = manager->GetDataTxVector (remoteAddress, &packetHeader, packet);
+  mode = txVector.GetMode ();
+  power = (int) txVector.GetTxPowerLevel ();
+
+  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth (), txVector.GetGuardInterval (), 1), 9000000, "RRPAA: Incorrect vale of data rate");
+  NS_TEST_ASSERT_MSG_EQ (power, 17, "RRPAA: Incorrect value of power level");
+
+  for (int i = 0; i < 10; i++)
+    {
+      manager->ReportDataOk (remoteAddress, &packetHeader, 0, ackMode, 0);
+    }
+
+  txVector = manager->GetDataTxVector (remoteAddress, &packetHeader, packet);
+  mode = txVector.GetMode ();
+  power = (int) txVector.GetTxPowerLevel ();
+
+  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth (), txVector.GetGuardInterval (), 1), 12000000, "RRPAA: Incorrect vale of data rate");
+  NS_TEST_ASSERT_MSG_EQ (power, 17, "RRPAA: Incorrect value of power level");
+
+  for (int i = 0; i < 13; i++)
+    {
+      manager->ReportDataOk (remoteAddress, &packetHeader, 0, ackMode, 0);
+    }
+
+  txVector = manager->GetDataTxVector (remoteAddress, &packetHeader, packet);
+  mode = txVector.GetMode ();
+  power = (int) txVector.GetTxPowerLevel ();
+
+  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth (), txVector.GetGuardInterval (), 1), 18000000, "RRPAA: Incorrect vale of data rate");
+  NS_TEST_ASSERT_MSG_EQ (power, 17, "RRPAA: Incorrect value of power level");
+
+  for (int i = 0; i < 19; i++)
+    {
+      manager->ReportDataOk (remoteAddress, &packetHeader, 0, ackMode, 0);
+    }
+
+  txVector = manager->GetDataTxVector (remoteAddress, &packetHeader, packet);
+  mode = txVector.GetMode ();
+  power = (int) txVector.GetTxPowerLevel ();
+
+  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth (), txVector.GetGuardInterval (), 1), 24000000, "RRPAA: Incorrect vale of data rate");
+  NS_TEST_ASSERT_MSG_EQ (power, 17, "RRPAA: Incorrect value of power level");
+
+  for (int i = 0; i < 23; i++)
+    {
+      manager->ReportDataOk (remoteAddress, &packetHeader, 0, ackMode, 0);
+    }
+
+  txVector = manager->GetDataTxVector (remoteAddress, &packetHeader, packet);
+  mode = txVector.GetMode ();
+  power = (int) txVector.GetTxPowerLevel ();
+
+  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth (), txVector.GetGuardInterval (), 1), 36000000, "RRPAA: Incorrect vale of data rate");
+  NS_TEST_ASSERT_MSG_EQ (power, 17, "RRPAA: Incorrect value of power level");
+
+  for (int i = 0; i < 33; i++)
+    {
+      manager->ReportDataOk (remoteAddress, &packetHeader, 0, ackMode, 0);
+    }
+
+  txVector = manager->GetDataTxVector (remoteAddress, &packetHeader, packet);
+  mode = txVector.GetMode ();
+  power = (int) txVector.GetTxPowerLevel ();
+
+  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth (), txVector.GetGuardInterval (), 1), 48000000, "RRPAA: Incorrect vale of data rate");
+  NS_TEST_ASSERT_MSG_EQ (power, 17, "RRPAA: Incorrect value of power level");
+
+  for (int i = 0; i < 43; i++)
+    {
+      manager->ReportDataOk (remoteAddress, &packetHeader, 0, ackMode, 0);
+    }
+
+  txVector = manager->GetDataTxVector (remoteAddress, &packetHeader, packet);
+  mode = txVector.GetMode ();
+  power = (int) txVector.GetTxPowerLevel ();
+
+  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth (), txVector.GetGuardInterval (), 1), 54000000, "RRPAA: Incorrect vale of data rate");
+  NS_TEST_ASSERT_MSG_EQ (power, 17, "RRPAA: Incorrect value of power level");
+
+  //-----------------------------------------------------------------------------------------------------
+
+  /**
+   * Now we need more successful transmissions to make power decrease.
+   * As we are at maximal rate, the power is decreased when it is sure that the failures
+   * will not generate a rate decrease.
+   */
+
+  for (int i = 0; i < 49; i++)
+    {
+      manager->ReportDataOk (remoteAddress, &packetHeader, 0, ackMode, 0);
+    }
+
+  txVector = manager->GetDataTxVector (remoteAddress, &packetHeader, packet);
+  mode = txVector.GetMode ();
+  power = (int) txVector.GetTxPowerLevel ();
+
+  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth (), txVector.GetGuardInterval (), 1), 54000000, "RRPAA: Incorrect vale of data rate");
+  NS_TEST_ASSERT_MSG_EQ (power, 17, "RRPAA: Incorrect value of power level");
+
+  manager->ReportDataOk (remoteAddress, &packetHeader, 0, ackMode, 0);
+
+  txVector = manager->GetDataTxVector (remoteAddress, &packetHeader, packet);
+  mode = txVector.GetMode ();
+  power = (int) txVector.GetTxPowerLevel ();
+
+  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth (), txVector.GetGuardInterval (), 1), 54000000, "RRPAA: Incorrect vale of data rate");
+  NS_TEST_ASSERT_MSG_EQ (power, 16, "RRPAA: Incorrect value of power level");
+
+  //-----------------------------------------------------------------------------------------------------
+
+  /**
+   * As rate hasn't change the same amount of success are needed.
+   * After 16*45 successful transmissions power is decreased to zero.
+   */
+
+  for (int i = 0; i < 16 * 50; i++)
+    {
+      manager->ReportDataOk (remoteAddress, &packetHeader, 0, ackMode, 0);
+    }
+
+  txVector = manager->GetDataTxVector (remoteAddress, &packetHeader, packet);
+  mode = txVector.GetMode ();
+  power = (int) txVector.GetTxPowerLevel ();
+
+  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth (), txVector.GetGuardInterval (), 1), 54000000, "RRPAA: Incorrect vale of data rate");
+  NS_TEST_ASSERT_MSG_EQ (power, 0, "RRPAA: Incorrect value of power level");
+
+  //-----------------------------------------------------------------------------------------------------
+
+  /**
+   * After 6 failures the power should be increased.
+   */
+
+  for (int i = 0; i < 6; i++)
+    {
+      manager->ReportDataFailed (remoteAddress,&packetHeader);
+    }
+
+  txVector = manager->GetDataTxVector (remoteAddress, &packetHeader, packet);
+  mode = txVector.GetMode ();
+  power = (int) txVector.GetTxPowerLevel ();
+
+  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth (), txVector.GetGuardInterval (), 1), 54000000, "RRPAA: Incorrect vale of data rate");
+  NS_TEST_ASSERT_MSG_EQ (power, 1, "RRPAA: Incorrect value of power level");
+
+  //-----------------------------------------------------------------------------------------------------
+
+  /*
+   * After 16*6 failed transmissions power is increase to 17.
+   */
+
+  for (int i = 0; i < 16 * 6; i++)
+    {
+      manager->ReportDataFailed (remoteAddress,&packetHeader);
+    }
+
+  txVector = manager->GetDataTxVector (remoteAddress, &packetHeader, packet);
+  mode = txVector.GetMode ();
+  power = (int) txVector.GetTxPowerLevel ();
+
+  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth (), txVector.GetGuardInterval (), 1), 54000000, "RRPAA: Incorrect vale of data rate");
+  NS_TEST_ASSERT_MSG_EQ (power, 17, "RRPAA: Incorrect value of power level");
+
+  //-----------------------------------------------------------------------------------------------------
+
+  /*
+   * After 6 more failures the rate should be decreased.
+   */
+
+  for (int i = 0; i < 6; i++)
+    {
+      manager->ReportDataFailed (remoteAddress,&packetHeader);
+    }
+
+  txVector = manager->GetDataTxVector (remoteAddress, &packetHeader, packet);
+  mode = txVector.GetMode ();
+  power = (int) txVector.GetTxPowerLevel ();
+
+  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth (), txVector.GetGuardInterval (), 1), 48000000, "RRPAA: Incorrect vale of data rate");
+  NS_TEST_ASSERT_MSG_EQ (power, 17, "RRPAA: Incorrect value of power level");
+
+  /*
+   * Now 11 failures are needed to decrease rate again.
+   */
+
+  for (int i = 0; i < 11; i++)
+    {
+      manager->ReportDataFailed (remoteAddress,&packetHeader);
+    }
+
+  txVector = manager->GetDataTxVector (remoteAddress, &packetHeader, packet);
+  mode = txVector.GetMode ();
+  power = (int) txVector.GetTxPowerLevel ();
+
+  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth (), txVector.GetGuardInterval (), 1), 36000000, "RRPAA: Incorrect vale of data rate");
+  NS_TEST_ASSERT_MSG_EQ (power, 17, "RRPAA: Incorrect value of power level");
+
+  //-----------------------------------------------------------------------------------------------------
+
+  /*
+   * Test power decrement when loss probability is between MTL and ORI.
+   * As we are at rate 36 Mbps we need at least 25 successful transmissions
+   * and 5 failures.
+   */
+
+  for (int i = 0; i < 25; i++)
+    {
+      manager->ReportDataOk (remoteAddress, &packetHeader, 0, ackMode, 0);
+    }
+
+  txVector = manager->GetDataTxVector (remoteAddress, &packetHeader, packet);
+  mode = txVector.GetMode ();
+  power = (int) txVector.GetTxPowerLevel ();
+
+  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth (), txVector.GetGuardInterval (), 1), 36000000, "RRPAA: Incorrect vale of data rate");
+  NS_TEST_ASSERT_MSG_EQ (power, 17, "RRPAA: Incorrect value of power level");
+
+  for (int i = 0; i < 5; i++)
+    {
+      manager->ReportDataFailed (remoteAddress,&packetHeader);
+    }
+
+  txVector = manager->GetDataTxVector (remoteAddress, &packetHeader, packet);
+  mode = txVector.GetMode ();
+  power = (int) txVector.GetTxPowerLevel ();
+
+  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth (), txVector.GetGuardInterval (), 1), 36000000, "RRPAA: Incorrect vale of data rate");
+  NS_TEST_ASSERT_MSG_EQ (power, 16, "RRPAA: Incorrect value of power level");
+
+  for (int i = 0; i < 5; i++)
+    {
+      manager->ReportDataFailed (remoteAddress,&packetHeader);
+    }
+
+  txVector = manager->GetDataTxVector (remoteAddress, &packetHeader, packet);
+  mode = txVector.GetMode ();
+  power = (int) txVector.GetTxPowerLevel ();
+
+  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth (), txVector.GetGuardInterval (), 1), 36000000, "RRPAA: Incorrect vale of data rate");
+  NS_TEST_ASSERT_MSG_EQ (power, 16, "RRPAA: Incorrect value of power level");
+
+  for (int i = 0; i < 25; i++)
+    {
+      manager->ReportDataOk (remoteAddress, &packetHeader, 0, ackMode, 0);
+    }
+
+  txVector = manager->GetDataTxVector (remoteAddress, &packetHeader, packet);
+  mode = txVector.GetMode ();
+  power = (int) txVector.GetTxPowerLevel ();
+
+  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth (), txVector.GetGuardInterval (), 1), 36000000, "RRPAA: Incorrect vale of data rate");
+  NS_TEST_ASSERT_MSG_EQ (power, 15, "RRPAA: Incorrect value of power level");
+
+  //-----------------------------------------------------------------------------------------------------
+
+  /*
+   * Repeat the previous test until power 0 is reached.
+   */
+
+  for (int i = 0; i < 16; i++)
+    {
+      for (int i = 0; i < 25; i++)
+        {
+          manager->ReportDataOk (remoteAddress, &packetHeader, 0, ackMode, 0);
+        }
+
+      for (int i = 0; i < 5; i++)
+        {
+          manager->ReportDataFailed (remoteAddress,&packetHeader);
+        }
+    }
+
+  txVector = manager->GetDataTxVector (remoteAddress, &packetHeader, packet);
+  mode = txVector.GetMode ();
+  power = (int) txVector.GetTxPowerLevel ();
+
+  NS_TEST_ASSERT_MSG_EQ (mode.GetDataRate (txVector.GetChannelWidth (), txVector.GetGuardInterval (), 1), 36000000, "RRPAA: Incorrect vale of data rate");
+  NS_TEST_ASSERT_MSG_EQ (power, 0, "RRPAA: Incorrect value of power level");
 
   Simulator::Stop (Seconds (10.0));
 
@@ -583,9 +1009,15 @@ PowerRateAdaptationTest::DoRun (void)
 
   TestParf ();
   TestAparf ();
+  TestRrpaa ();
 }
 
-//-----------------------------------------------------------------------------
+/**
+ * \ingroup wifi-test
+ * \ingroup tests
+ *
+ * \brief Power Rate Adaptation Test Suite
+ */
 class PowerRateAdaptationTestSuite : public TestSuite
 {
 public:
@@ -598,4 +1030,4 @@ PowerRateAdaptationTestSuite::PowerRateAdaptationTestSuite ()
   AddTestCase (new PowerRateAdaptationTest, TestCase::QUICK);
 }
 
-static PowerRateAdaptationTestSuite g_powerRateAdaptationTestSuite;
+static PowerRateAdaptationTestSuite g_powerRateAdaptationTestSuite; ///< the test suite

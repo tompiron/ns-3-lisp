@@ -42,19 +42,19 @@ namespace dsr {
  * \ingroup dsr
  * \brief DSR Send Buffer Entry
  */
-class SendBuffEntry
+class DsrSendBuffEntry
 {
 public:
   /**
-   * Construct SendBuffEntry with the given parameters.
+   * Construct DsrSendBuffEntry with the given parameters.
    *
    * \param pa packet
    * \param d destination address
    * \param exp expiration time
    * \param p protocol number
    */
-  SendBuffEntry (Ptr<const Packet> pa = 0, Ipv4Address d = Ipv4Address (),
-                 Time exp = Simulator::Now (), uint8_t p = 0)
+  DsrSendBuffEntry (Ptr<const Packet> pa = 0, Ipv4Address d = Ipv4Address (),
+                    Time exp = Simulator::Now (), uint8_t p = 0)
     : m_packet (pa),
       m_dst (d),
       m_expire (exp + Simulator::Now ()),
@@ -63,43 +63,75 @@ public:
   }
   /**
    * Compare send buffer entries
-   * \param o another SendBuffEntry
+   * \param o another DsrSendBuffEntry
    * \return true if equal
    */
-  bool operator== (SendBuffEntry const & o) const
+  bool operator== (DsrSendBuffEntry const & o) const
   {
     return ((m_packet == o.m_packet) && (m_dst == o.m_dst) && (m_expire == o.m_expire));
   }
-  
+
   // Fields
+  /**
+   * Get pointer to entry's packet
+   * \returns the current packet
+   */
   Ptr<const Packet> GetPacket () const
   {
     return m_packet;
   }
+  /**
+   * Set pointer to entry's packet
+   * \param p the current packet
+   */
   void SetPacket (Ptr<const Packet> p)
   {
     m_packet = p;
   }
+  /**
+   * Get destination address of entry
+   * \returns the destination IPv4 address
+   */
   Ipv4Address GetDestination () const
   {
     return m_dst;
   }
+  /**
+   * Set destination address of entry
+   * \param d the destination IP address
+   */
   void SetDestination (Ipv4Address d)
   {
     m_dst = d;
   }
+  /**
+   * Set expire time for entry
+   * \param exp the expire time
+   */
   void SetExpireTime (Time exp)
   {
     m_expire = exp + Simulator::Now ();
   }
+  /**
+   * Get expire time for entry
+   * \returns the expire time
+   */
   Time GetExpireTime () const
   {
     return m_expire - Simulator::Now ();
   }
+  /**
+   * Set protocol value
+   * \param p the protocol
+   */
   void SetProtocol (uint8_t p)
   {
     m_protocol = p;
   }
+  /**
+   * Get protocol value
+   * \returns the protocol
+   */
   uint8_t GetProtocol () const
   {
     return m_protocol;
@@ -121,24 +153,24 @@ private:
  * \brief DSR send buffer
  */
 /************************************************************************************************************************/
-class SendBuffer
+class DsrSendBuffer
 {
 public:
   /**
    * Default constructor
    */
-  SendBuffer ()
+  DsrSendBuffer ()
   {
   }
   /**
    * Push entry in queue, if there is no entry with
    * the same packet and destination address in queue.
    *
-   * \param entry SendBuffEntry to put in the queue
+   * \param entry DsrSendBuffEntry to put in the queue
    * \return true if successfully enqueued,
    *         false otherwise
    */
-  bool Enqueue (SendBuffEntry & entry);
+  bool Enqueue (DsrSendBuffEntry & entry);
   /**
    * Return first found (the earliest) entry for
    * the given destination.
@@ -148,7 +180,7 @@ public:
    * \return true if successfully dequeued,
    *         false otherwise
    */
-  bool Dequeue (Ipv4Address dst, SendBuffEntry & entry);
+  bool Dequeue (Ipv4Address dst, DsrSendBuffEntry & entry);
   /**
    * Remove all packets with destination IP address dst
    *
@@ -211,16 +243,20 @@ public:
    *
    * \return a pointer to the internal queue
    */
-  std::vector<SendBuffEntry> & GetBuffer ()
+  std::vector<DsrSendBuffEntry> & GetBuffer ()
   {
     return m_sendBuffer;
   }
 
 private:
-
-  std::vector<SendBuffEntry> m_sendBuffer;                      ///< The send buffer to cache unsent packet
+  std::vector<DsrSendBuffEntry> m_sendBuffer;                   ///< The send buffer to cache unsent packet
   void Purge ();                                                ///< Remove all expired entries
-  void Drop (SendBuffEntry en, std::string reason);             ///< Notify that packet is dropped from queue by timeout
+
+  /// Notify that packet is dropped from queue by timeout
+  /// \param en BuffEntry Buffer entry
+  /// \param reason Drop reason
+  void Drop (DsrSendBuffEntry en, std::string reason);
+
   uint32_t m_maxLen;                                            ///< The maximum number of packets that we allow a routing protocol to buffer.
   Time m_sendBufferTimeout;                                     ///< The maximum period of time that a routing protocol is allowed to buffer a packet for, seconds.
   /**
@@ -231,7 +267,7 @@ private:
    * \return true if the SendBufferEntry destination is the same,
    *         false otherwise
    */
-  static bool IsEqual (SendBuffEntry en, const Ipv4Address dst)
+  static bool IsEqual (DsrSendBuffEntry en, const Ipv4Address dst)
   {
     return (en.GetDestination () == dst);
   }

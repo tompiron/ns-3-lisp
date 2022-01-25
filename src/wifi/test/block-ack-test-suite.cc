@@ -22,13 +22,17 @@
 #include "ns3/log.h"
 #include "ns3/qos-utils.h"
 #include "ns3/ctrl-headers.h"
-#include <list>
 
 using namespace ns3;
 
 NS_LOG_COMPONENT_DEFINE ("BlockAckTest");
 
 /**
+ * \ingroup wifi-test
+ * \ingroup tests
+ *
+ * \brief Packet Buffering Case A
+ *
  * This simple test verifies the correctness of buffering for packets received
  * under block ack. In order to completely understand this example is important to cite
  * section 9.10.3 in IEEE802.11 standard:
@@ -67,7 +71,7 @@ public:
   virtual ~PacketBufferingCaseA ();
 private:
   virtual void DoRun (void);
-  std::list<uint16_t> m_expectedBuffer;
+  std::list<uint16_t> m_expectedBuffer; ///< expected test buffer
 };
 
 PacketBufferingCaseA::PacketBufferingCaseA ()
@@ -97,21 +101,29 @@ PacketBufferingCaseA::DoRun (void)
 
   uint16_t receivedSeq = 4001 * 16;
   uint32_t mappedSeq = QosUtilsMapSeqControlToUniqueInteger (receivedSeq, endSeq);
-  for (i = m_buffer.begin (); i != m_buffer.end () && QosUtilsMapSeqControlToUniqueInteger ((*i), endSeq) < mappedSeq; i++)
+  /* cycle to right position for this packet */
+  for (i = m_buffer.begin (); i != m_buffer.end (); i++)
     {
+      if (QosUtilsMapSeqControlToUniqueInteger ((*i), endSeq) >= mappedSeq)
+        {
+          //position found
+          break;
+        }
     }
-  {
-    m_buffer.insert (i, receivedSeq);
-  }
+  m_buffer.insert (i, receivedSeq);
 
   receivedSeq = 3999 * 16;
   mappedSeq = QosUtilsMapSeqControlToUniqueInteger (receivedSeq, endSeq);
-  for (i = m_buffer.begin (); i != m_buffer.end () && QosUtilsMapSeqControlToUniqueInteger ((*i), endSeq) < mappedSeq; i++)
+  /* cycle to right position for this packet */
+  for (i = m_buffer.begin (); i != m_buffer.end (); i++)
     {
+      if (QosUtilsMapSeqControlToUniqueInteger ((*i), endSeq) >= mappedSeq)
+        {
+          //position found
+          break;
+        }
     }
-  {
-    m_buffer.insert (i, receivedSeq);
-  }
+  m_buffer.insert (i, receivedSeq);
 
   for (i = m_buffer.begin (), j = m_expectedBuffer.begin (); i != m_buffer.end (); i++, j++)
     {
@@ -120,7 +132,13 @@ PacketBufferingCaseA::DoRun (void)
 }
 
 
-/* ----- = old packets
+/**
+ * \ingroup wifi-test
+ * \ingroup tests
+ *
+ * \brief Packet Buffering Case B
+ *
+ * ----- = old packets
  * +++++ = new packets
  *
  *  CASE B: startSeq > endSeq
@@ -150,7 +168,7 @@ public:
   virtual ~PacketBufferingCaseB ();
 private:
   virtual void DoRun (void);
-  std::list<uint16_t> m_expectedBuffer;
+  std::list<uint16_t> m_expectedBuffer; ///< expected test buffer
 };
 
 PacketBufferingCaseB::PacketBufferingCaseB ()
@@ -181,30 +199,42 @@ PacketBufferingCaseB::DoRun (void)
 
   uint16_t receivedSeq = 15 * 16;
   uint32_t mappedSeq = QosUtilsMapSeqControlToUniqueInteger (receivedSeq, endSeq);
-  for (i = m_buffer.begin (); i != m_buffer.end () && QosUtilsMapSeqControlToUniqueInteger ((*i), endSeq) < mappedSeq; i++)
+  /* cycle to right position for this packet */
+  for (i = m_buffer.begin (); i != m_buffer.end (); i++)
     {
+      if (QosUtilsMapSeqControlToUniqueInteger ((*i), endSeq) >= mappedSeq)
+        {
+          //position found
+          break;
+        }
     }
-  {
-    m_buffer.insert (i, receivedSeq);
-  }
+  m_buffer.insert (i, receivedSeq);
 
   receivedSeq = 15 * 16 + 1;
   mappedSeq = QosUtilsMapSeqControlToUniqueInteger (receivedSeq, endSeq);
-  for (i = m_buffer.begin (); i != m_buffer.end () && QosUtilsMapSeqControlToUniqueInteger ((*i), endSeq) < mappedSeq; i++)
+  /* cycle to right position for this packet */
+  for (i = m_buffer.begin (); i != m_buffer.end (); i++)
     {
+      if (QosUtilsMapSeqControlToUniqueInteger ((*i), endSeq) >= mappedSeq)
+        {
+          //position found
+          break;
+        }
     }
-  {
-    m_buffer.insert (i, receivedSeq);
-  }
+  m_buffer.insert (i, receivedSeq);
 
   receivedSeq = 4050 * 16;
   mappedSeq = QosUtilsMapSeqControlToUniqueInteger (receivedSeq, endSeq);
-  for (i = m_buffer.begin (); i != m_buffer.end () && QosUtilsMapSeqControlToUniqueInteger ((*i), endSeq) < mappedSeq; i++)
+  /* cycle to right position for this packet */
+  for (i = m_buffer.begin (); i != m_buffer.end (); i++)
     {
+      if (QosUtilsMapSeqControlToUniqueInteger ((*i), endSeq) >= mappedSeq)
+        {
+          //position found
+          break;
+        }
     }
-  {
-    m_buffer.insert (i, receivedSeq);
-  }
+  m_buffer.insert (i, receivedSeq);
 
   for (i = m_buffer.begin (), j = m_expectedBuffer.begin (); i != m_buffer.end (); i++, j++)
     {
@@ -213,14 +243,19 @@ PacketBufferingCaseB::DoRun (void)
 }
 
 
-//Test for block ack header
+/**
+ * \ingroup wifi-test
+ * \ingroup tests
+ *
+ * \brief Test for block ack header
+ */
 class CtrlBAckResponseHeaderTest : public TestCase
 {
 public:
   CtrlBAckResponseHeaderTest ();
 private:
   virtual void DoRun ();
-  CtrlBAckResponseHeader m_blockAckHdr;
+  CtrlBAckResponseHeader m_blockAckHdr; ///< block ack header
 };
 
 CtrlBAckResponseHeaderTest::CtrlBAckResponseHeaderTest ()
@@ -274,7 +309,12 @@ CtrlBAckResponseHeaderTest::DoRun (void)
   NS_TEST_EXPECT_MSG_EQ (m_blockAckHdr.IsPacketReceived (80), false, "error in compressed bitmap");
 }
 
-
+/**
+ * \ingroup wifi-test
+ * \ingroup tests
+ *
+ * \brief Block Ack Test Suite
+ */
 class BlockAckTestSuite : public TestSuite
 {
 public:
@@ -289,4 +329,4 @@ BlockAckTestSuite::BlockAckTestSuite ()
   AddTestCase (new CtrlBAckResponseHeaderTest, TestCase::QUICK);
 }
 
-static BlockAckTestSuite g_blockAckTestSuite;
+static BlockAckTestSuite g_blockAckTestSuite; ///< the test suite

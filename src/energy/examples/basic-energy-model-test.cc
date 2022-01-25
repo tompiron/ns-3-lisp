@@ -31,7 +31,6 @@
 #include "ns3/config.h"
 #include "ns3/string.h"
 #include "ns3/yans-wifi-helper.h"
-#include "ns3/nqos-wifi-mac-helper.h"
 #include <cmath>
 
 using namespace ns3;
@@ -188,14 +187,6 @@ BasicEnergyUpdateTest::StateSwitchTest (WifiPhy::State state)
   double voltage = source->GetSupplyVoltage ();
   estRemainingEnergy -= devModel->GetIdleCurrentA () * voltage * m_timeS;
 
-  /*
-   * Manually calculate the number of periodic updates performed by the source.
-   * This is to check if the periodic updates are performed correctly.
-   */
-  double actualTime = m_timeS;
-  actualTime /= source->GetEnergyUpdateInterval ().GetSeconds ();
-  actualTime = floor (actualTime); // rounding for update interval
-  actualTime *= source->GetEnergyUpdateInterval ().GetSeconds ();
 
   // calculate new state power consumption
   double current = 0.0;
@@ -376,8 +367,8 @@ BasicEnergyDepletionTest::DepletionTestCase (double simTimeS,
   wifiChannel.SetPropagationDelay ("ns3::ConstantSpeedPropagationDelayModel");
   wifiPhy.SetChannel (wifiChannel.Create ());
 
-  // Add a non-QoS upper MAC, and disable rate control
-  NqosWifiMacHelper wifiMac = NqosWifiMacHelper::Default ();
+  // Add a MAC and disable rate control
+  WifiMacHelper wifiMac;
   wifi.SetRemoteStationManager ("ns3::ConstantRateWifiManager",
                                 "DataMode", StringValue (phyMode),
                                 "ControlMode", StringValue (phyMode));

@@ -23,6 +23,7 @@
 
 #include "wifi-helper.h"
 
+
 namespace ns3 {
 
 /**
@@ -30,6 +31,8 @@ namespace ns3 {
  *
  * This class can create MACs of type ns3::ApWifiMac, ns3::StaWifiMac,
  * and, ns3::AdhocWifiMac, with QosSupported attribute set to False.
+ *
+ * \deprecated This class deprecated and replaced by ns3::WifiMacHelper
  */
 class NqosWifiMacHelper : public WifiMacHelper
 {
@@ -48,6 +51,7 @@ public:
   /**
    * Create a mac helper in a default working state.
    * i.e., this is an adhoc mac by default.
+   * \return NqosWifiMacHelper
    */
   static NqosWifiMacHelper Default (void);
   /**
@@ -68,6 +72,12 @@ public:
    * \param v6 the value of the attribute to set
    * \param n7 the name of the attribute to set
    * \param v7 the value of the attribute to set
+   * \param n8 the name of the attribute to set
+   * \param v8 the value of the attribute to set
+   * \param n9 the name of the attribute to set
+   * \param v9 the value of the attribute to set
+   * \param n10 the name of the attribute to set
+   * \param v10 the value of the attribute to set
    *
    * All the attributes specified in this method should exist
    * in the requested mac.
@@ -80,9 +90,12 @@ public:
                         std::string n4 = "", const AttributeValue &v4 = EmptyAttributeValue (),
                         std::string n5 = "", const AttributeValue &v5 = EmptyAttributeValue (),
                         std::string n6 = "", const AttributeValue &v6 = EmptyAttributeValue (),
-                        std::string n7 = "", const AttributeValue &v7 = EmptyAttributeValue ());
+                        std::string n7 = "", const AttributeValue &v7 = EmptyAttributeValue (),
+                        std::string n8 = "", const AttributeValue &v8 = EmptyAttributeValue (),
+                        std::string n9 = "", const AttributeValue &v9 = EmptyAttributeValue (),
+                        std::string n10 = "", const AttributeValue &v10 = EmptyAttributeValue ());
 protected:
-  ObjectFactory m_mac;
+  ObjectFactory m_mac; ///< MAC object
 private:
   /**
    * \returns a newly-created MAC object.

@@ -20,7 +20,6 @@
 
 #include "ns3/log.h"
 #include "ns3/uinteger.h"
-#include "amsdu-subframe-header.h"
 #include "msdu-standard-aggregator.h"
 
 namespace ns3 {
@@ -36,7 +35,7 @@ MsduStandardAggregator::GetTypeId (void)
     .SetParent<MsduAggregator> ()
     .SetGroupName ("Wifi")
     .AddConstructor<MsduStandardAggregator> ()
-    .AddAttribute ("MaxAmsduSize", "Max length in byte of an A-MSDU",
+    .AddAttribute ("MaxAmsduSize", "Max length in byte of an A-MSDU (Deprecated!)",
                    UintegerValue (7935),
                    MakeUintegerAccessor (&MsduStandardAggregator::m_maxAmsduLength),
                    MakeUintegerChecker<uint32_t> ())
@@ -52,9 +51,21 @@ MsduStandardAggregator::~MsduStandardAggregator ()
 {
 }
 
+void
+MsduStandardAggregator::SetMaxAmsduSize (uint32_t maxSize)
+{
+  m_maxAmsduLength = maxSize;
+}
+
+uint32_t
+MsduStandardAggregator::GetMaxAmsduSize (void) const
+{
+  return m_maxAmsduLength;
+}
+
 bool
 MsduStandardAggregator::Aggregate (Ptr<const Packet> packet, Ptr<Packet> aggregatedPacket,
-                                   Mac48Address src, Mac48Address dest)
+                                   Mac48Address src, Mac48Address dest) const
 {
   NS_LOG_FUNCTION (this);
   Ptr<Packet> currentPacket;
@@ -83,7 +94,7 @@ MsduStandardAggregator::Aggregate (Ptr<const Packet> packet, Ptr<Packet> aggrega
 }
 
 uint32_t
-MsduStandardAggregator::CalculatePadding (Ptr<const Packet> packet)
+MsduStandardAggregator::CalculatePadding (Ptr<const Packet> packet) const
 {
   return (4 - (packet->GetSize () % 4 )) % 4;
 }

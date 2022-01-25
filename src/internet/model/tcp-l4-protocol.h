@@ -40,10 +40,24 @@ class Ipv4Interface;
 class TcpSocketBase;
 class Ipv4EndPoint;
 class Ipv6EndPoint;
+class NetDevice;
+
+
+/**
+ * \ingroup internet
+ * \defgroup tcp TCP
+ *
+ * This is an implementation of various Transmission Control Protocol flavors.
+ *
+ * Each TCP flavors is studied to match a specific environment, and they
+ * differ mainly in the congestion control algorithms used.
+ *
+ * See \RFC{793} and others.
+ */
 
 /**
  * \ingroup tcp
- * \brief Tcp socket creation and multiplexing/demultiplexing
+ * \brief TCP socket creation and multiplexing/demultiplexing
  * 
  * A single instance of this class is held by one instance of class Node.
  *
@@ -88,17 +102,18 @@ public:
    * of the TCP protocol
    */
   Ptr<Socket> CreateSocket (void);
+
   /**
-   * \brief Create a TCP socket using the specified TypeId
+   * \brief Create a TCP socket using the specified congestion control algorithm TypeId
    *
    * \return A smart Socket pointer to a TcpSocket allocated by this instance
    * of the TCP protocol
    *
-   * \warning using a socketTypeId other than TCP is a bad idea.
+   * \warning using a congestionTypeId other than TCP is a bad idea.
    *
-   * \param socketTypeId the socket TypeId
+   * \param congestionTypeId the congestion control algorithm TypeId
    */
-  Ptr<Socket> CreateSocket (TypeId socketTypeId);
+  Ptr<Socket> CreateSocket (TypeId congestionTypeId);
 
   /**
    * \brief Allocate an IPv4 Endpoint
@@ -113,26 +128,30 @@ public:
   Ipv4EndPoint *Allocate (Ipv4Address address);
   /**
    * \brief Allocate an IPv4 Endpoint
+   * \param boundNetDevice Bound NetDevice (if any)
    * \param port port to use
    * \return the Endpoint
    */
-  Ipv4EndPoint *Allocate (uint16_t port);
+  Ipv4EndPoint *Allocate (Ptr<NetDevice> boundNetDevice, uint16_t port);
   /**
    * \brief Allocate an IPv4 Endpoint
+   * \param boundNetDevice Bound NetDevice (if any)
    * \param address address to use
    * \param port port to use
    * \return the Endpoint
    */
-  Ipv4EndPoint *Allocate (Ipv4Address address, uint16_t port);
+  Ipv4EndPoint *Allocate (Ptr<NetDevice> boundNetDevice, Ipv4Address address, uint16_t port);
   /**
    * \brief Allocate an IPv4 Endpoint
+   * \param boundNetDevice Bound NetDevice (if any)
    * \param localAddress local address to use
    * \param localPort local port to use
    * \param peerAddress remote address to use
    * \param peerPort remote port to use
    * \return the Endpoint
    */
-  Ipv4EndPoint *Allocate (Ipv4Address localAddress, uint16_t localPort,
+  Ipv4EndPoint *Allocate (Ptr<NetDevice> boundNetDevice,
+                          Ipv4Address localAddress, uint16_t localPort,
                           Ipv4Address peerAddress, uint16_t peerPort);
   /**
    * \brief Allocate an IPv6 Endpoint
@@ -147,26 +166,30 @@ public:
   Ipv6EndPoint *Allocate6 (Ipv6Address address);
   /**
    * \brief Allocate an IPv6 Endpoint
+   * \param boundNetDevice Bound NetDevice (if any)
    * \param port port to use
    * \return the Endpoint
    */
-  Ipv6EndPoint *Allocate6 (uint16_t port);
+  Ipv6EndPoint *Allocate6 (Ptr<NetDevice> boundNetDevice, uint16_t port);
   /**
    * \brief Allocate an IPv6 Endpoint
+   * \param boundNetDevice Bound NetDevice (if any)
    * \param address address to use
    * \param port port to use
    * \return the Endpoint
    */
-  Ipv6EndPoint *Allocate6 (Ipv6Address address, uint16_t port);
+  Ipv6EndPoint *Allocate6 (Ptr<NetDevice> boundNetDevice, Ipv6Address address, uint16_t port);
   /**
    * \brief Allocate an IPv6 Endpoint
+   * \param boundNetDevice Bound NetDevice (if any)
    * \param localAddress local address to use
    * \param localPort local port to use
    * \param peerAddress remote address to use
    * \param peerPort remote port to use
    * \return the Endpoint
    */
-  Ipv6EndPoint *Allocate6 (Ipv6Address localAddress, uint16_t localPort,
+  Ipv6EndPoint *Allocate6 (Ptr<NetDevice> boundNetDevice,
+                           Ipv6Address localAddress, uint16_t localPort,
                            Ipv6Address peerAddress, uint16_t peerPort);
 
   /**
@@ -282,7 +305,7 @@ private:
   Ipv4EndPointDemux *m_endPoints;  //!< A list of IPv4 end points.
   Ipv6EndPointDemux *m_endPoints6; //!< A list of IPv6 end points.
   TypeId m_rttTypeId;              //!< The RTT Estimator TypeId
-  TypeId m_socketTypeId;           //!< The socket TypeId
+  TypeId m_congestionTypeId;       //!< The socket TypeId
   std::vector<Ptr<TcpSocketBase> > m_sockets;      //!< list of sockets
   IpL4Protocol::DownTargetCallback m_downTarget;   //!< Callback to send packets over IPv4
   IpL4Protocol::DownTargetCallback6 m_downTarget6; //!< Callback to send packets over IPv6

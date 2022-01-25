@@ -22,7 +22,6 @@
 #include "ns3/pointer.h"
 #include "ns3/log.h"
 #include "ns3/string.h"
-#include "ns3/qos-tag.h"
 #include "ns3/mac-low.h"
 #include "ns3/dcf-manager.h"
 #include "ns3/mac-rx-middle.h"
@@ -38,6 +37,7 @@ NS_LOG_COMPONENT_DEFINE ("OcbWifiMac");
 
 NS_OBJECT_ENSURE_REGISTERED (OcbWifiMac);
 
+/// Wildcard BSSID
 const static Mac48Address WILDCARD_BSSID = Mac48Address::GetBroadcast ();
 
 TypeId
@@ -160,8 +160,17 @@ OcbWifiMac::Enqueue (Ptr<const Packet> packet, Mac48Address to)
   NS_LOG_FUNCTION (this << packet << to);
   if (m_stationManager->IsBrandNew (to))
     {
-      // In ocb mode, we assume that every destination supports all
-      // the rates we support.
+      //In ad hoc mode, we assume that every destination supports all
+      //the rates we support.
+      if (m_htSupported || m_vhtSupported)
+        {
+          m_stationManager->AddAllSupportedMcs (to);
+          m_stationManager->AddStationHtCapabilities (to, GetHtCapabilities());
+        }
+      if (m_vhtSupported)
+        {
+          m_stationManager->AddStationVhtCapabilities (to, GetVhtCapabilities());
+        }
       m_stationManager->AddAllSupportedModes (to);
       m_stationManager->RecordDisassociated (to);
     }
@@ -201,6 +210,10 @@ OcbWifiMac::Enqueue (Ptr<const Packet> packet, Mac48Address to)
       hdr.SetTypeData ();
     }
 
+  if (m_htSupported || m_vhtSupported)
+    {
+      hdr.SetNoOrder ();
+    }
   hdr.SetAddr1 (to);
   hdr.SetAddr2 (GetAddress ());
   hdr.SetAddr3 (WILDCARD_BSSID);
@@ -232,6 +245,23 @@ OcbWifiMac::Receive (Ptr<Packet> packet, const WifiMacHeader *hdr)
 
   Mac48Address from = hdr->GetAddr2 ();
   Mac48Address to = hdr->GetAddr1 ();
+
+  if (m_stationManager->IsBrandNew (from))
+    {
+      //In ad hoc mode, we assume that every destination supports all
+      //the rates we support.
+      if (m_htSupported || m_vhtSupported)
+        {
+          m_stationManager->AddAllSupportedMcs (from);
+          m_stationManager->AddStationHtCapabilities (from, GetHtCapabilities());
+        }
+      if (m_vhtSupported)
+        {
+          m_stationManager->AddStationVhtCapabilities (from, GetVhtCapabilities());
+        }
+      m_stationManager->AddAllSupportedModes (from);
+      m_stationManager->RecordDisassociated (from);
+    }
 
   if (hdr->IsData ())
     {
@@ -296,7 +326,7 @@ void
 OcbWifiMac::ConfigureEdca (uint32_t cwmin, uint32_t cwmax, uint32_t aifsn, enum AcIndex ac)
 {
   NS_LOG_FUNCTION (this << cwmin << cwmax << aifsn << ac);
-  Ptr<Dcf> dcf;
+  Ptr<DcaTxop> dcf;
   switch (ac)
     {
     case AC_VO:
@@ -409,7 +439,7 @@ OcbWifiMac::EnableForWave (Ptr<WaveNetDevice> device)
   m_low = CreateObject<WaveMacLow> ();
   (DynamicCast<WaveMacLow> (m_low))->SetWaveNetDevice (device);
   m_low->SetRxCallback (MakeCallback (&MacRxMiddle::Receive, m_rxMiddle));
-  m_dcfManager->SetupLowListener (m_low);
+  m_dcfManager->SetupLow (m_low);
   m_dca->SetLow (m_low);
   for (EdcaQueues::iterator i = m_edca.begin (); i != m_edca.end (); ++i)
     {

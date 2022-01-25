@@ -23,6 +23,7 @@
 #include "ns3/simulator.h"
 #include "ns3/point-to-point-net-device.h"
 #include "ns3/point-to-point-channel.h"
+#include "ns3/net-device-queue-interface.h"
 
 using namespace ns3;
 
@@ -78,13 +79,20 @@ PointToPointTest::DoRun (void)
 
   devA->Attach (channel);
   devA->SetAddress (Mac48Address::Allocate ());
-  devA->SetQueue (CreateObject<DropTailQueue> ());
+  devA->SetQueue (CreateObject<DropTailQueue<Packet> > ());
   devB->Attach (channel);
   devB->SetAddress (Mac48Address::Allocate ());
-  devB->SetQueue (CreateObject<DropTailQueue> ());
+  devB->SetQueue (CreateObject<DropTailQueue<Packet> > ());
 
   a->AddDevice (devA);
   b->AddDevice (devB);
+
+  Ptr<NetDeviceQueueInterface> ifaceA = CreateObject<NetDeviceQueueInterface> ();
+  devA->AggregateObject (ifaceA);
+  ifaceA->CreateTxQueues ();
+  Ptr<NetDeviceQueueInterface> ifaceB = CreateObject<NetDeviceQueueInterface> ();
+  devB->AggregateObject (ifaceB);
+  ifaceB->CreateTxQueues ();
 
   Simulator::Schedule (Seconds (1.0), &PointToPointTest::SendOnePacket, this, devA);
 

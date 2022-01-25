@@ -23,27 +23,32 @@
 #include "ns3/nstime.h"
 #include "ns3/node-container.h"
 
-namespace ns3
-{
-namespace olsr
-{
-  /** See \bugid{780} */
+namespace ns3 {
+namespace olsr {
+
+/**
+ * \ingroup olsr-test
+ * \ingroup tests
+ *
+ * See \bugid{780}
+ */
 class Bug780Test : public TestCase
 {
 public:
-  Bug780Test (); 
+  Bug780Test ();
   ~Bug780Test ();
 private:
   /// Total simulation time
   const Time m_time;
   /// Create & configure test network
   void CreateNodes ();
-  /// Go
   void DoRun ();
   /// Send one ping
   void SendPing ();
-  /// Receive echo reply
-  /// \param socket the socket
+  /**
+   * Receive echo reply
+   * \param socket the socket
+   */
   void Receive (Ptr<Socket> socket);
   /// Socket
   Ptr<Socket> m_socket;

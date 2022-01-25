@@ -30,10 +30,21 @@ namespace ns3 {
 
 class Packet;
 
+/**
+ * \ingroup icmp
+ *
+ * \brief Base class for all the ICMP packet headers.
+ *
+ * This header is the common part in all the ICMP packets.
+ */
 class Icmpv4Header : public Header
 {
 public:
-  enum {
+
+  /**
+   * ICMP type code.
+   */
+  enum Type_e {
     ECHO_REPLY = 0,
     DEST_UNREACH = 3,
     ECHO = 8,
@@ -88,6 +99,11 @@ private:
   bool m_calcChecksum;  //!< true if checksum is calculated
 };
 
+/**
+ * \ingroup icmp
+ *
+ * \brief ICMP Echo header
+ */
 class Icmpv4Echo : public Header
 {
 public:
@@ -148,10 +164,18 @@ private:
   uint32_t m_dataSize;   //!< data size
 };
 
+/**
+ * \ingroup icmp
+ *
+ * \brief ICMP Destination Unreachable header
+ */
 class Icmpv4DestinationUnreachable : public Header
 {
 public:
-  enum {
+  /**
+   * ICMP error code : Destination Unreachable
+   */
+  enum ErrorDestinationUnreachable_e {
     NET_UNREACHABLE = 0,
     HOST_UNREACHABLE = 1,
     PROTOCOL_UNREACHABLE = 2,
@@ -214,10 +238,19 @@ private:
 };
 
 
+/**
+ * \ingroup icmp
+ *
+ * \brief ICMP Time Exceeded header
+ */
 class Icmpv4TimeExceeded : public Header
 {
 public:
-  enum {
+  /**
+   * \brief ICMP error code : Time Exceeded
+   */
+  enum ErrorTimeExceeded_e
+  {
     TIME_TO_LIVE = 0,
     FRAGMENT_REASSEMBLY = 1
   };

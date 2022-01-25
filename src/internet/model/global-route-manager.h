@@ -25,6 +25,8 @@
 namespace ns3 {
 
 /**
+ * \ingroup globalrouting
+ *
  * @brief A global global router
  *
  * This singleton object can query interface each node in the system
@@ -40,6 +42,7 @@ class GlobalRouteManager
 public:
 /**
  * @brief Allocate a 32-bit router ID from monotonically increasing counter.
+ * @returns A new new RouterId.
  */
   static uint32_t AllocateRouterId ();
 

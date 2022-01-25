@@ -46,6 +46,7 @@ except ImportError:
 #
 interesting_config_items = [
     "NS3_ENABLED_MODULES",
+    "NS3_ENABLED_CONTRIBUTED_MODULES",
     "NS3_MODULE_PATH",
     "NSC_ENABLED",
     "ENABLE_REAL_TIME",
@@ -54,7 +55,7 @@ interesting_config_items = [
     "ENABLE_TESTS",
     "EXAMPLE_DIRECTORIES",
     "ENABLE_PYTHON_BINDINGS",
-    "ENABLE_CLICK",
+    "NSCLICK",
     "ENABLE_BRITE",
     "ENABLE_OPENFLOW",
     "APPNAME",
@@ -69,7 +70,7 @@ ENABLE_REAL_TIME = False
 ENABLE_THREADING = False
 ENABLE_EXAMPLES = True
 ENABLE_TESTS = True
-ENABLE_CLICK = False
+NSCLICK = False
 ENABLE_BRITE = False
 ENABLE_OPENFLOW = False
 EXAMPLE_DIRECTORIES = []
@@ -753,7 +754,7 @@ def run_job_synchronously(shell_command, directory, valgrind, is_python, build_p
             path_cmd = os.path.join (NS3_BUILDDIR, shell_command)
 
     if valgrind:
-        cmd = "valgrind --suppressions=%s --leak-check=full --show-reachable=yes --error-exitcode=2 %s" % (suppressions_path, 
+        cmd = "valgrind --suppressions=%s --leak-check=full --show-reachable=yes --error-exitcode=2 --errors-for-leak-kinds=all %s" % (suppressions_path,
             path_cmd)
     else:
         cmd = path_cmd
@@ -767,19 +768,19 @@ def run_job_synchronously(shell_command, directory, valgrind, is_python, build_p
     elapsed_time = time.time() - start_time
 
     retval = proc.returncode
+    try:
+        stdout_results = stdout_results.decode()
+    except UnicodeDecodeError:
+        print("Non-decodable character in stdout output of %s" % cmd)
+        print(stdout_results)
+        retval = 1
+    try:
+        stderr_results = stderr_results.decode()
+    except UnicodeDecodeError:
+        print("Non-decodable character in stderr output of %s" % cmd)
+        print(stderr_results)
+        retval = 1
 
-    #
-    # valgrind sometimes has its own idea about what kind of memory management
-    # errors are important.  We want to detect *any* leaks, so the way to do 
-    # that is to look for the presence of a valgrind leak summary section.
-    #
-    # If another error has occurred (like a test suite has failed), we don't 
-    # want to trump that error, so only do the valgrind output scan if the 
-    # test has otherwise passed (return code was zero).
-    #
-    if valgrind and retval == 0 and "== LEAK SUMMARY:" in stderr_results:
-        retval = 2
-    
     if options.verbose:
         print("Return code = ", retval)
         print("stderr = ", stderr_results)
@@ -1141,6 +1142,26 @@ def run_tests():
             example_tests,
             example_names_original,
             python_tests)
+            
+    for module in NS3_ENABLED_CONTRIBUTED_MODULES:
+        # Remove the "ns3-" from the module name.
+        module = module[len("ns3-"):]
+
+        # Set the directories and paths for this example. 
+        module_directory     = os.path.join("contrib", module)
+        example_directory    = os.path.join(module_directory, "examples")
+        examples_to_run_path = os.path.join(module_directory, "test", "examples-to-run.py")
+        cpp_executable_dir   = os.path.join(NS3_BUILDDIR, example_directory)
+        python_script_dir    = os.path.join(example_directory)
+
+        # Parse this module's file.
+        parse_examples_to_run_file(
+            examples_to_run_path,
+            cpp_executable_dir,
+            python_script_dir,
+            example_tests,
+            example_names_original,
+            python_tests)
 
     #
     # If lots of logging is enabled, we can crash Python when it tries to 
@@ -1250,6 +1271,10 @@ def run_tests():
     # We can also use the --constrain option to provide an ordering of test 
     # execution quite easily.
     #
+
+    # Flag indicating a specific suite was explicitly requested
+    single_suite = False
+    
     if len(options.suite):
         # See if this is a valid test suite.
         path_cmd = os.path.join("utils", test_runner_name + " --print-test-name-list")
@@ -1258,6 +1283,7 @@ def run_tests():
             suites = suites.decode()
         if options.suite in suites.split('\n'):
             suites = options.suite + "\n"
+            single_suite = True
         else:
             print('The test suite was not run because an unknown test suite name was requested.', file=sys.stderr)
             sys.exit(2)
@@ -1277,7 +1303,7 @@ def run_tests():
     # indicated she wants to run or a list of test suites provided by
     # the test-runner possibly according to user provided constraints.
     # We go through the trouble of setting up the parallel execution 
-    # even in the case of a single suite to avoid having two process the
+    # even in the case of a single suite to avoid having to process the
     # results in two different places.
     #
     if isinstance(suites, bytes):
@@ -1287,8 +1313,9 @@ def run_tests():
     #
     # Performance tests should only be run when they are requested,
     # i.e. they are not run by default in test.py.
-    #
-    if options.constrain != 'performance':
+    # If a specific suite was requested we run it, even if
+    # it is a performance test.
+    if not single_suite and options.constrain != 'performance':
 
         # Get a list of all of the performance tests.
         path_cmd = os.path.join("utils", test_runner_name + " --print-test-name-list --test-type=%s" % "performance")
@@ -1324,6 +1351,8 @@ def run_tests():
         else:
             proc = subprocess.Popen("sysctl -n hw.ncpu", shell = True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             stdout_results, stderr_results = proc.communicate()
+            stdout_results = stdout_results.decode()
+            stderr_results = stderr_results.decode()
             if len(stderr_results) == 0:
                 processors = int(stdout_results)
 

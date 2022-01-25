@@ -19,7 +19,6 @@
  */
 
 #include "arf-wifi-manager.h"
-#include "ns3/assert.h"
 #include "ns3/log.h"
 #include "ns3/uinteger.h"
 
@@ -37,14 +36,14 @@ NS_LOG_COMPONENT_DEFINE ("ArfWifiManager");
  */
 struct ArfWifiRemoteStation : public WifiRemoteStation
 {
-  uint32_t m_timer;
-  uint32_t m_success;
-  uint32_t m_failed;
-  bool m_recovery;
-  uint32_t m_retry;
-  uint32_t m_timerTimeout;
-  uint32_t m_successThreshold;
-  uint32_t m_rate;
+  uint32_t m_timer; ///< timer value
+  uint32_t m_success; ///< success count
+  uint32_t m_failed; ///< failed count
+  bool m_recovery; ///< recovery
+  uint32_t m_retry; ///< retry count
+  uint32_t m_timerTimeout; ///< timer timeout
+  uint32_t m_successThreshold; ///< success threshold
+  uint32_t m_rate; ///< rate
 };
 
 NS_OBJECT_ENSURE_REGISTERED (ArfWifiManager);
@@ -65,11 +64,17 @@ ArfWifiManager::GetTypeId (void)
                    UintegerValue (10),
                    MakeUintegerAccessor (&ArfWifiManager::m_successThreshold),
                    MakeUintegerChecker<uint32_t> ())
+    .AddTraceSource ("Rate",
+                     "Traced value for rate changes (b/s)",
+                     MakeTraceSourceAccessor (&ArfWifiManager::m_currentRate),
+                     "ns3::TracedValueCallback::Uint64")
   ;
   return tid;
 }
 
 ArfWifiManager::ArfWifiManager ()
+  : WifiRemoteStationManager (),
+    m_currentRate (0)
 {
   NS_LOG_FUNCTION (this);
 }
@@ -204,9 +209,9 @@ ArfWifiManager::DoReportFinalDataFailed (WifiRemoteStation *station)
 }
 
 WifiTxVector
-ArfWifiManager::DoGetDataTxVector (WifiRemoteStation *st, uint32_t size)
+ArfWifiManager::DoGetDataTxVector (WifiRemoteStation *st)
 {
-  NS_LOG_FUNCTION (this << st << size);
+  NS_LOG_FUNCTION (this << st);
   ArfWifiRemoteStation *station = (ArfWifiRemoteStation *) st;
   uint32_t channelWidth = GetChannelWidth (station);
   if (channelWidth > 20 && channelWidth != 22)
@@ -214,7 +219,13 @@ ArfWifiManager::DoGetDataTxVector (WifiRemoteStation *st, uint32_t size)
       //avoid to use legacy rate adaptation algorithms for IEEE 802.11n/ac
       channelWidth = 20;
     }
-  return WifiTxVector (GetSupported (station, station->m_rate), GetDefaultTxPowerLevel (), GetLongRetryCount (station), false, 1, 1, channelWidth, GetAggregation (station), false);
+  WifiMode mode = GetSupported (station, station->m_rate);
+  if (m_currentRate != mode.GetDataRate (channelWidth))
+    {
+      NS_LOG_DEBUG ("New datarate: " << mode.GetDataRate (channelWidth));
+      m_currentRate = mode.GetDataRate (channelWidth);
+    }
+  return WifiTxVector (mode, GetDefaultTxPowerLevel (), GetLongRetryCount (station), GetPreambleForTransmission (mode, GetAddress (station)), 800, 1, 1, 0, channelWidth, GetAggregation (station), false);
 }
 
 WifiTxVector
@@ -230,7 +241,18 @@ ArfWifiManager::DoGetRtsTxVector (WifiRemoteStation *st)
       //avoid to use legacy rate adaptation algorithms for IEEE 802.11n/ac
       channelWidth = 20;
     }
-  return WifiTxVector (GetSupported (station, 0), GetDefaultTxPowerLevel (), GetLongRetryCount (station), false, 1, 0, channelWidth, GetAggregation (station), false);
+  WifiTxVector rtsTxVector;
+  WifiMode mode;
+  if (GetUseNonErpProtection () == false)
+    {
+      mode = GetSupported (station, 0);
+    }
+  else
+    {
+      mode = GetNonErpSupported (station, 0);
+    }
+  rtsTxVector = WifiTxVector (mode, GetDefaultTxPowerLevel (), GetLongRetryCount (station), GetPreambleForTransmission (mode, GetAddress (station)), 800, 1, 1, 0, channelWidth, GetAggregation (station), false);
+  return rtsTxVector;
 }
 
 bool
@@ -238,6 +260,36 @@ ArfWifiManager::IsLowLatency (void) const
 {
   NS_LOG_FUNCTION (this);
   return true;
+}
+
+void
+ArfWifiManager::SetHtSupported (bool enable)
+{
+  //HT is not supported by this algorithm.
+  if (enable)
+    {
+      NS_FATAL_ERROR ("WifiRemoteStationManager selected does not support HT rates");
+    }
+}
+
+void
+ArfWifiManager::SetVhtSupported (bool enable)
+{
+  //VHT is not supported by this algorithm.
+  if (enable)
+    {
+      NS_FATAL_ERROR ("WifiRemoteStationManager selected does not support VHT rates");
+    }
+}
+
+void
+ArfWifiManager::SetHeSupported (bool enable)
+{
+  //HE is not supported by this algorithm.
+  if (enable)
+    {
+      NS_FATAL_ERROR ("WifiRemoteStationManager selected does not support HE rates");
+    }
 }
 
 } //namespace ns3

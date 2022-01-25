@@ -25,7 +25,7 @@
 #include "scheduler.h"
 #include "event-impl.h"
 #include "system-thread.h"
-#include "ns3/system-mutex.h"
+#include "system-mutex.h"
 
 #include "ptr.h"
 
@@ -34,7 +34,7 @@
 /**
  * \file
  * \ingroup simulator
- * Declaration of class ns3::DefaultSimulatorImpl.
+ * ns3::DefaultSimulatorImpl declaration.
  */
 
 namespace ns3 {
@@ -62,9 +62,9 @@ public:
   virtual void Destroy ();
   virtual bool IsFinished (void) const;
   virtual void Stop (void);
-  virtual void Stop (Time const &delay);
-  virtual EventId Schedule (Time const &delay, EventImpl *event);
-  virtual void ScheduleWithContext (uint32_t context, Time const &delay, EventImpl *event);
+  virtual void Stop (const Time &delay);
+  virtual EventId Schedule (const Time &delay, EventImpl *event);
+  virtual void ScheduleWithContext (uint32_t context, const Time &delay, EventImpl *event);
   virtual EventId ScheduleNow (EventImpl *event);
   virtual EventId ScheduleDestroy (EventImpl *event);
   virtual void Remove (const EventId &id);

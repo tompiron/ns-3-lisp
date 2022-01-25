@@ -25,13 +25,8 @@
 namespace ns3 {
 
 /**
- * \ingroup internet
- * \defgroup ipv6ListRouting Ipv6 List Routing
- */
-
-/**
- * \ingroup ipv6ListRouting
- * \class Ipv6ListRouting
+ * \ingroup ipv6Routing
+ *
  * \brief Hold list of Ipv6RoutingProtocol objects.
  *
  * This class is a specialization of Ipv6RoutingProtocol that allows
@@ -103,13 +98,7 @@ public:
   virtual void NotifyAddRoute (Ipv6Address dst, Ipv6Prefix mask, Ipv6Address nextHop, uint32_t interface, Ipv6Address prefixToUse = Ipv6Address::GetZero ());
   virtual void NotifyRemoveRoute (Ipv6Address dst, Ipv6Prefix mask, Ipv6Address nextHop, uint32_t interface, Ipv6Address prefixToUse = Ipv6Address::GetZero ());
   virtual void SetIpv6 (Ptr<Ipv6> ipv6);
-
-  /**
-   * \brief Print the Routing Table entries
-   *
-   * \param stream the ostream the Routing table is printed to
-   */
-  virtual void PrintRoutingTable (Ptr<OutputStreamWrapper> stream) const;
+  virtual void PrintRoutingTable (Ptr<OutputStreamWrapper> stream, Time::Unit unit = Time::S) const;
 
 protected:
   /**

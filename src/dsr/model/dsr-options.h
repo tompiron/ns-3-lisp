@@ -161,6 +161,7 @@ public:
   Ipv4Address ReverseSearchNextTwoHop  (Ipv4Address ipv4Address, std::vector<Ipv4Address>& vec);
   /**
    * \brief Print out the elements in the route vector
+   * \param vec The route vector to print.
    */
   void PrintVector (std::vector<Ipv4Address>& vec);
   /**
@@ -236,11 +237,11 @@ protected:
   /**
    * \brief The route request table.
    */
-  Ptr<dsr::RreqTable> m_rreqTable;
+  Ptr<dsr::DsrRreqTable> m_rreqTable;
   /**
    * \brief The route cache table.
    */
-  Ptr<dsr::RouteCache> m_routeCache;
+  Ptr<dsr::DsrRouteCache> m_routeCache;
   /**
    * \brief The ipv4 route.
    */
@@ -267,7 +268,7 @@ protected:
   TracedCallback <const DsrOptionSRHeader &> m_rxPacketTrace;
 
 private:
-  Ptr<Node> m_node;
+  Ptr<Node> m_node; ///< the node
 };
 
 /**
@@ -282,6 +283,10 @@ public:
    */
   static const uint8_t OPT_NUMBER = 224;
 
+  /**
+   * \brief Get the type ID.
+   * \return the object TypeId
+   */
   static TypeId GetTypeId ();
 
   DsrOptionPad1 ();
@@ -303,6 +308,10 @@ public:
    */
   static const uint8_t OPT_NUMBER = 0;
 
+  /**
+   * \brief Get the type ID.
+   * \return the object TypeId
+   */
   static TypeId GetTypeId ();
 
   DsrOptionPadn ();
@@ -324,6 +333,10 @@ public:
    */
   static const uint8_t OPT_NUMBER = 1;
 
+  /**
+   * \brief Get the type ID.
+   * \return the object TypeId
+   */
   static TypeId GetTypeId ();
   /**
    * \brief Get the instance type ID.
@@ -346,7 +359,7 @@ private:
   /**
    * \brief The route cache.
    */
-  Ptr<dsr::RouteCache> m_routeCache;
+  Ptr<dsr::DsrRouteCache> m_routeCache;
   /**
    * \brief The ipv4.
    */
@@ -365,6 +378,10 @@ public:
    */
   static const uint8_t OPT_NUMBER = 2;
 
+  /**
+   * \brief Get the type ID.
+   * \return the object TypeId
+   */
   static TypeId GetTypeId ();
   /**
    * \brief Get the instance type ID.
@@ -382,7 +399,7 @@ private:
   /**
    * \brief The route cache.
    */
-  Ptr<dsr::RouteCache> m_routeCache;
+  Ptr<dsr::DsrRouteCache> m_routeCache;
   /**
    * \brief The ip layer 3.
    */
@@ -401,6 +418,10 @@ public:
    */
   static const uint8_t OPT_NUMBER = 96;
 
+  /**
+   * \brief Get the type ID.
+   * \return the object TypeId
+   */
   static TypeId GetTypeId ();
   /**
    * \brief Get the instance type ID.
@@ -433,6 +454,10 @@ public:
    */
   static const uint8_t OPT_NUMBER = 3;
 
+  /**
+   * \brief Get the type ID.
+   * \return the object TypeId
+   */
   static TypeId GetTypeId ();
   /**
    * \brief Get the instance type ID.
@@ -461,7 +486,7 @@ private:
   /**
    * \brief The route cache.
    */
-  Ptr<dsr::RouteCache> m_routeCache;
+  Ptr<dsr::DsrRouteCache> m_routeCache;
   /**
    * \brief The ipv4 layer 3.
    */
@@ -480,6 +505,10 @@ public:
    */
   static const uint8_t OPT_NUMBER = 160;
 
+  /**
+   * \brief Get the type ID.
+   * \return the object TypeId
+   */
   static TypeId GetTypeId ();
   /**
    * \brief Get the instance type ID.
@@ -497,7 +526,7 @@ private:
   /**
    * \brief The route cache.
    */
-  Ptr<dsr::RouteCache> m_routeCache;
+  Ptr<dsr::DsrRouteCache> m_routeCache;
   /**
    * \brief The ipv4 layer 3.
    */
@@ -516,6 +545,10 @@ public:
    */
   static const uint8_t OPT_NUMBER = 32;
 
+  /**
+   * \brief Get the type ID.
+   * \return the object TypeId
+   */
   static TypeId GetTypeId ();
   /**
    * \brief Get the instance type ID.
@@ -533,7 +566,7 @@ private:
   /**
    * \brief The route cache.
    */
-  Ptr<dsr::RouteCache> m_routeCache;
+  Ptr<dsr::DsrRouteCache> m_routeCache;
   /**
    * \brief The ipv4 layer 3.
    */

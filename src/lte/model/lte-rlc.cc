@@ -33,21 +33,25 @@ namespace ns3 {
 NS_LOG_COMPONENT_DEFINE ("LteRlc");
 
 
-///////////////////////////////////////
-
+/// LteRlcSpecificLteMacSapUser class
 class LteRlcSpecificLteMacSapUser : public LteMacSapUser
 {
 public:
+  /**
+   * Constructor
+   *
+   * \param rlc the RLC
+   */
   LteRlcSpecificLteMacSapUser (LteRlc* rlc);
 
   // Interface implemented from LteMacSapUser
-  virtual void NotifyTxOpportunity (uint32_t bytes, uint8_t layer, uint8_t harqId);
+  virtual void NotifyTxOpportunity (uint32_t bytes, uint8_t layer, uint8_t harqId, uint8_t componentCarrierId, uint16_t rnti, uint8_t lcid);
   virtual void NotifyHarqDeliveryFailure ();
-  virtual void ReceivePdu (Ptr<Packet> p);
+  virtual void ReceivePdu (Ptr<Packet> p, uint16_t rnti, uint8_t lcid);
 
 private:
   LteRlcSpecificLteMacSapUser ();
-  LteRlc* m_rlc;
+  LteRlc* m_rlc; ///< the RLC
 };
 
 LteRlcSpecificLteMacSapUser::LteRlcSpecificLteMacSapUser (LteRlc* rlc)
@@ -60,9 +64,9 @@ LteRlcSpecificLteMacSapUser::LteRlcSpecificLteMacSapUser ()
 }
 
 void
-LteRlcSpecificLteMacSapUser::NotifyTxOpportunity (uint32_t bytes, uint8_t layer, uint8_t harqId)
+LteRlcSpecificLteMacSapUser::NotifyTxOpportunity (uint32_t bytes, uint8_t layer, uint8_t harqId, uint8_t componentCarrierId, uint16_t rnti, uint8_t lcid)
 {
-  m_rlc->DoNotifyTxOpportunity (bytes, layer, harqId);
+  m_rlc->DoNotifyTxOpportunity (bytes, layer, harqId, componentCarrierId, rnti, lcid);
 }
 
 void
@@ -72,9 +76,9 @@ LteRlcSpecificLteMacSapUser::NotifyHarqDeliveryFailure ()
 }
 
 void
-LteRlcSpecificLteMacSapUser::ReceivePdu (Ptr<Packet> p)
+LteRlcSpecificLteMacSapUser::ReceivePdu (Ptr<Packet> p, uint16_t rnti, uint8_t lcid)
 {
-  m_rlc->DoReceivePdu (p);
+  m_rlc->DoReceivePdu (p, rnti, lcid);
 }
 
 
@@ -213,16 +217,15 @@ LteRlcSm::DoTransmitPdcpPdu (Ptr<Packet> p)
 }
 
 void
-LteRlcSm::DoReceivePdu (Ptr<Packet> p)
+LteRlcSm::DoReceivePdu (Ptr<Packet> p, uint16_t rnti, uint8_t lcid)
 {
   NS_LOG_FUNCTION (this << p);
   // RLC Performance evaluation
   RlcTag rlcTag;
   Time delay;
-  if (p->FindFirstMatchingByteTag(rlcTag))
-    {
-      delay = Simulator::Now() - rlcTag.GetSenderTimestamp ();
-    }
+  NS_ASSERT_MSG (p->PeekPacketTag (rlcTag), "RlcTag is missing");
+  p->RemovePacketTag (rlcTag);
+  delay = Simulator::Now() - rlcTag.GetSenderTimestamp ();
   NS_LOG_LOGIC (" RNTI=" << m_rnti 
                 << " LCID=" << (uint32_t) m_lcid 
                 << " size=" << p->GetSize () 
@@ -231,7 +234,7 @@ LteRlcSm::DoReceivePdu (Ptr<Packet> p)
 }
 
 void
-LteRlcSm::DoNotifyTxOpportunity (uint32_t bytes, uint8_t layer, uint8_t harqId)
+LteRlcSm::DoNotifyTxOpportunity (uint32_t bytes, uint8_t layer, uint8_t harqId, uint8_t componentCarrierId, uint16_t rnti, uint8_t lcid)
 {
   NS_LOG_FUNCTION (this << bytes);
   LteMacSapProvider::TransmitPduParameters params;
@@ -240,10 +243,11 @@ LteRlcSm::DoNotifyTxOpportunity (uint32_t bytes, uint8_t layer, uint8_t harqId)
   params.lcid = m_lcid;
   params.layer = layer;
   params.harqProcessId = harqId;
+  params.componentCarrierId = componentCarrierId;
 
   // RLC Performance evaluation
   RlcTag tag (Simulator::Now());
-  params.pdu->AddByteTag (tag);
+  params.pdu->AddPacketTag (tag);
   NS_LOG_LOGIC (" RNTI=" << m_rnti 
                 << " LCID=" << (uint32_t) m_lcid 
                 << " size=" << bytes);

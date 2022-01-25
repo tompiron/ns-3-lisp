@@ -182,7 +182,8 @@ public:
     CCABUSY,  //!< Channel busy.
     RX,       //!< Receiving.
     TX,       //!< Transmitting.
-    SLEEP     //!< Sleeping.
+    SLEEP,    //!< Sleeping.
+    DISABLED  //!< Disabled.
   };
 
   /**
@@ -224,6 +225,10 @@ public:
    */
   virtual void EnergyDepletionHandler (void) = 0;
   /**
+   * Handle the energy recharge event.
+   */
+  virtual void EnergyRechargeHandler (void) = 0;
+  /**
    * Send a packet using a specific transmission mode.
    *
    * \param pkt  Packet to transmit.
@@ -262,12 +267,6 @@ public:
    */
   virtual void SetReceiveErrorCallback (RxErrCallback cb) = 0;
 
-  /**
-   * Set the receiver gain.
-   *
-   * \param gain Gain added at receiver, in dB.
-   */
-  virtual void SetRxGainDb (double gain) = 0;
 
   /**
    * Set the transmit power.
@@ -292,12 +291,6 @@ public:
    */
   virtual void SetCcaThresholdDb (double thresh) = 0;
 
-  /**
-   * Get the receiver gain added to signal at receiver in dB.
-   *
-   * \return The gain.
-   */
-  virtual double GetRxGainDb (void) = 0;
 
   /**
    * Get the current transmit power, in dB.

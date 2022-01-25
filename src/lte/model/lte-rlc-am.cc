@@ -186,7 +186,7 @@ LteRlcAm::DoTransmitPdcpPdu (Ptr<Packet> p)
  */
 
 void
-LteRlcAm::DoNotifyTxOpportunity (uint32_t bytes, uint8_t layer, uint8_t harqId)
+LteRlcAm::DoNotifyTxOpportunity (uint32_t bytes, uint8_t layer, uint8_t harqId, uint8_t componentCarrierId, uint16_t rnti, uint8_t lcid)
 {
   NS_LOG_FUNCTION (this << m_rnti << (uint32_t) m_lcid << bytes);
 
@@ -256,6 +256,12 @@ LteRlcAm::DoNotifyTxOpportunity (uint32_t bytes, uint8_t layer, uint8_t harqId)
       NS_LOG_LOGIC ("RLC header: " << rlcAmHeader);
       packet->AddHeader (rlcAmHeader);
 
+      // Sender timestamp
+      RlcTag rlcTag (Simulator::Now ());
+      NS_ASSERT_MSG (!packet->PeekPacketTag (rlcTag), "RlcTag is already present");
+      packet->AddPacketTag (rlcTag);
+      m_txPdu (m_rnti, m_lcid, packet->GetSize ());
+
       // Send RLC PDU to MAC layer
       LteMacSapProvider::TransmitPduParameters params;
       params.pdu = packet;
@@ -263,6 +269,7 @@ LteRlcAm::DoNotifyTxOpportunity (uint32_t bytes, uint8_t layer, uint8_t harqId)
       params.lcid = m_lcid;
       params.layer = layer;
       params.harqProcessId = harqId;
+      params.componentCarrierId = componentCarrierId;
 
       m_macSapProvider->TransmitPdu (params);
 
@@ -279,7 +286,6 @@ LteRlcAm::DoNotifyTxOpportunity (uint32_t bytes, uint8_t layer, uint8_t harqId)
       NS_ASSERT (m_vtA < m_vtS);
       SequenceNumber10 sn;
       sn.SetModulusBase (m_vtA);
-      bool found = false;
       for (sn = m_vtA; sn < m_vtS; sn++) 
         {
           uint16_t seqNumberValue = sn.GetValue ();
@@ -293,7 +299,6 @@ LteRlcAm::DoNotifyTxOpportunity (uint32_t bytes, uint8_t layer, uint8_t harqId)
               if (( packet->GetSize () <= bytes )
                   || m_txOpportunityForRetxAlwaysBigEnough)
                 {
-                  found = true;
                   // According to 5.2.1, the data field is left as is, but we rebuild the header
                   LteRlcAmHeader rlcAmHeader;
                   packet->RemoveHeader (rlcAmHeader);
@@ -336,7 +341,13 @@ LteRlcAm::DoNotifyTxOpportunity (uint32_t bytes, uint8_t layer, uint8_t harqId)
 
                   packet->AddHeader (rlcAmHeader);
                   NS_LOG_LOGIC ("new AM RLC header: " << rlcAmHeader);
-                  
+
+                  // Sender timestamp
+                  RlcTag rlcTag (Simulator::Now ());
+                  NS_ASSERT_MSG (packet->PeekPacketTag (rlcTag), "RlcTag is missing");
+                  packet->ReplacePacketTag (rlcTag);
+                  m_txPdu (m_rnti, m_lcid, packet->GetSize ());
+
                   // Send RLC PDU to MAC layer
                   LteMacSapProvider::TransmitPduParameters params;
                   params.pdu = packet;
@@ -344,6 +355,7 @@ LteRlcAm::DoNotifyTxOpportunity (uint32_t bytes, uint8_t layer, uint8_t harqId)
                   params.lcid = m_lcid;
                   params.layer = layer;
                   params.harqProcessId = harqId;
+                  params.componentCarrierId = componentCarrierId;
                   
                   m_macSapProvider->TransmitPdu (params);
 
@@ -375,7 +387,7 @@ LteRlcAm::DoNotifyTxOpportunity (uint32_t bytes, uint8_t layer, uint8_t harqId)
                 }
             }
         }
-      NS_ASSERT_MSG (found, "m_retxBufferSize > 0, but no PDU considered for retx found");
+      NS_ASSERT_MSG (false, "m_retxBufferSize > 0, but no PDU considered for retx found");
     }
   else if ( m_txonBufferSize > 0 )
     {
@@ -615,7 +627,8 @@ LteRlcAm::DoNotifyTxOpportunity (uint32_t bytes, uint8_t layer, uint8_t harqId)
 
   // FIRST SEGMENT
   LteRlcSduStatusTag tag;
-  (*it)->RemovePacketTag (tag);
+  NS_ASSERT_MSG ((*it)->PeekPacketTag (tag), "LteRlcSduStatusTag is missing");
+  (*it)->PeekPacketTag (tag);
   if ( (tag.GetStatus () == LteRlcSduStatusTag::FULL_SDU) ||
        (tag.GetStatus () == LteRlcSduStatusTag::FIRST_SEGMENT)
      )
@@ -626,20 +639,27 @@ LteRlcAm::DoNotifyTxOpportunity (uint32_t bytes, uint8_t layer, uint8_t harqId)
     {
       framingInfo |= LteRlcAmHeader::NO_FIRST_BYTE;
     }
-  (*it)->AddPacketTag (tag);
 
   // Add all SDUs (in DataField) to the Packet
   while (it < dataField.end ())
     {
       NS_LOG_LOGIC ("Adding SDU/segment to packet, length = " << (*it)->GetSize ());
 
-      packet->AddAtEnd (*it);
+      NS_ASSERT_MSG ((*it)->PeekPacketTag (tag), "LteRlcSduStatusTag is missing");
+      (*it)->RemovePacketTag (tag);
+      if (packet->GetSize () > 0)
+        {
+          packet->AddAtEnd (*it);
+        }
+      else
+        {
+          packet = (*it);
+        }
       it++;
     }
 
   // LAST SEGMENT (Note: There could be only one and be the first one)
   it--;
-  (*it)->RemovePacketTag (tag);
   if ( (tag.GetStatus () == LteRlcSduStatusTag::FULL_SDU) ||
         (tag.GetStatus () == LteRlcSduStatusTag::LAST_SEGMENT) )
     {
@@ -649,7 +669,6 @@ LteRlcAm::DoNotifyTxOpportunity (uint32_t bytes, uint8_t layer, uint8_t harqId)
     {
       framingInfo |= LteRlcAmHeader::NO_LAST_BYTE;
     }
-  (*it)->AddPacketTag (tag);
 
   // Set the FramingInfo flag after the calculation
   rlcAmHeader.SetFramingInfo (framingInfo);
@@ -707,7 +726,7 @@ LteRlcAm::DoNotifyTxOpportunity (uint32_t bytes, uint8_t layer, uint8_t harqId)
 
   // Sender timestamp
   RlcTag rlcTag (Simulator::Now ());
-  packet->AddByteTag (rlcTag);
+  packet->ReplacePacketTag (rlcTag);
   m_txPdu (m_rnti, m_lcid, packet->GetSize ());
 
   // Send RLC PDU to MAC layer
@@ -717,6 +736,7 @@ LteRlcAm::DoNotifyTxOpportunity (uint32_t bytes, uint8_t layer, uint8_t harqId)
   params.lcid = m_lcid;
   params.layer = layer;
   params.harqProcessId = harqId;
+  params.componentCarrierId = componentCarrierId;
 
   m_macSapProvider->TransmitPdu (params);
 }
@@ -729,17 +749,16 @@ LteRlcAm::DoNotifyHarqDeliveryFailure ()
 
 
 void
-LteRlcAm::DoReceivePdu (Ptr<Packet> p)
+LteRlcAm::DoReceivePdu (Ptr<Packet> p, uint16_t rnti, uint8_t lcid)
 {
   NS_LOG_FUNCTION (this << m_rnti << (uint32_t) m_lcid << p->GetSize ());
 
   // Receiver timestamp
   RlcTag rlcTag;
   Time delay;
-  if (p->FindFirstMatchingByteTag (rlcTag))
-    {
-      delay = Simulator::Now() - rlcTag.GetSenderTimestamp ();
-    }
+  NS_ASSERT_MSG (p->PeekPacketTag (rlcTag), "RlcTag is missing");
+  p->RemovePacketTag (rlcTag);
+  delay = Simulator::Now() - rlcTag.GetSenderTimestamp ();
   m_rxPdu (m_rnti, m_lcid, p->GetSize (), delay.GetNanoSeconds ());
 
   // Get RLC header parameters
@@ -1670,26 +1689,26 @@ LteRlcAm::ExpirePollRetransmitTimer (void)
       || (m_vtS == m_vtMs))
     {
       NS_LOG_INFO ("txonBuffer and retxBuffer empty. Move PDUs up to = " << m_vtS.GetValue () - 1 << " to retxBuffer");
-      uint16_t sn = 0;
-      for ( sn = m_vtA.GetValue(); sn < m_vtS.GetValue (); sn++ )
+      for (SequenceNumber10 sn = m_vtA; sn < m_vtS; sn++)
         {
-          bool pduAvailable = m_txedBuffer.at (sn).m_pdu != 0;
+          bool pduAvailable = m_txedBuffer.at (sn.GetValue ()).m_pdu != 0;
 
            if ( pduAvailable )
              {
+               uint16_t snValue = sn.GetValue ();
                NS_LOG_INFO ("Move PDU " << sn << " from txedBuffer to retxBuffer");
-               m_retxBuffer.at (sn).m_pdu = m_txedBuffer.at (sn).m_pdu->Copy ();
-               m_retxBuffer.at (sn).m_retxCount = m_txedBuffer.at (sn).m_retxCount;
-               m_retxBufferSize += m_retxBuffer.at (sn).m_pdu->GetSize ();
+               m_retxBuffer.at (snValue).m_pdu = m_txedBuffer.at (snValue).m_pdu->Copy ();
+               m_retxBuffer.at (snValue).m_retxCount = m_txedBuffer.at (snValue).m_retxCount;
+               m_retxBufferSize += m_retxBuffer.at (snValue).m_pdu->GetSize ();
 
-               m_txedBufferSize -= m_txedBuffer.at (sn).m_pdu->GetSize ();
-               m_txedBuffer.at (sn).m_pdu = 0;
-               m_txedBuffer.at (sn).m_retxCount = 0;
+               m_txedBufferSize -= m_txedBuffer.at (snValue).m_pdu->GetSize ();
+               m_txedBuffer.at (snValue).m_pdu = 0;
+               m_txedBuffer.at (snValue).m_retxCount = 0;
              }
         }
     }
 
-  DoReportBufferStatus ();  
+  DoReportBufferStatus ();
 }
 
 

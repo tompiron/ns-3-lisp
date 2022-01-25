@@ -24,7 +24,6 @@
 #include "ns3/simulator.h"
 #include "ns3/simple-channel.h"
 #include "ns3/simple-net-device.h"
-#include "ns3/drop-tail-queue.h"
 #include "ns3/socket.h"
 #include "ns3/boolean.h"
 #include "ns3/enum.h"
@@ -38,9 +37,6 @@
 #include "ns3/ipv6-l3-protocol.h"
 #include "ns3/icmpv6-l4-protocol.h"
 #include "ns3/udp-l4-protocol.h"
-#include "ns3/ipv6-static-routing.h"
-#include "ns3/ipv6-list-routing.h"
-#include "ns3/ipv6-list-routing-helper.h"
 #include "ns3/ripng.h"
 #include "ns3/ripng-helper.h"
 #include "ns3/node-container.h"
@@ -50,18 +46,37 @@
 
 using namespace ns3;
 
-// Ipv6RipngTest
-
+/**
+ * \ingroup internet-test
+ * \ingroup tests
+ *
+ * \brief IPv6 RIPng Test
+ */
 class Ipv6RipngTest : public TestCase
 {
-  Ptr<Packet> m_receivedPacket;
+  Ptr<Packet> m_receivedPacket; //!< Received packet
+
+  /**
+   * \brief Send data.
+   * \param socket The sending socket.
+   * \param to Destination address.
+   */
   void DoSendData (Ptr<Socket> socket, std::string to);
+  /**
+   * \brief Send data.
+   * \param socket The sending socket.
+   * \param to Destination address.
+   */
   void SendData (Ptr<Socket> socket, std::string to);
 
 public:
   virtual void DoRun (void);
   Ipv6RipngTest ();
 
+  /**
+   * \brief Receive data.
+   * \param socket The receiving socket.
+   */
   void ReceivePkt (Ptr<Socket> socket);
 };
 
@@ -115,10 +130,8 @@ Ipv6RipngTest::DoRun (void)
   NodeContainer all (nodes, routers);
 
   RipNgHelper ripNgRouting;
-  Ipv6ListRoutingHelper listRH;
-  listRH.Add (ripNgRouting, 0);
   InternetStackHelper internetv6routers;
-  internetv6routers.SetRoutingHelper (listRH);
+  internetv6routers.SetRoutingHelper (ripNgRouting);
   internetv6routers.Install (routers);
 
   InternetStackHelper internetv6nodes;
@@ -256,16 +269,37 @@ Ipv6RipngTest::DoRun (void)
 
 // Ipv6RipngCountToInfinityTest
 
+/**
+ * \ingroup internet-test
+ * \ingroup tests
+ *
+ * \brief IPv6 RIPng count to infinity Test
+ */
 class Ipv6RipngCountToInfinityTest : public TestCase
 {
-  Ptr<Packet> m_receivedPacket;
+  Ptr<Packet> m_receivedPacket; //!< Received packet
+
+  /**
+   * \brief Send data.
+   * \param socket The sending socket.
+   * \param to Destination address.
+   */
   void DoSendData (Ptr<Socket> socket, std::string to);
+  /**
+   * \brief Send data.
+   * \param socket The sending socket.
+   * \param to Destination address.
+   */
   void SendData (Ptr<Socket> socket, std::string to);
 
 public:
   virtual void DoRun (void);
   Ipv6RipngCountToInfinityTest ();
 
+  /**
+   * \brief Receive data.
+   * \param socket The receiving socket.
+   */
   void ReceivePkt (Ptr<Socket> socket);
 };
 
@@ -326,10 +360,8 @@ Ipv6RipngCountToInfinityTest::DoRun (void)
   ripNgRouting.SetInterfaceMetric (routerB, 2, 10);
   ripNgRouting.SetInterfaceMetric (routerC, 1, 10);
 
-  Ipv6ListRoutingHelper listRH;
-  listRH.Add (ripNgRouting, 0);
   InternetStackHelper internetv6routers;
-  internetv6routers.SetRoutingHelper (listRH);
+  internetv6routers.SetRoutingHelper (ripNgRouting);
   internetv6routers.Install (routers);
 
   InternetStackHelper internetv6nodes;
@@ -462,17 +494,29 @@ Ipv6RipngCountToInfinityTest::DoRun (void)
   Simulator::Destroy ();
 }
 
-// Ipv6RipngSplitHorizonStrategyTest
-
+/**
+ * \ingroup internet-test
+ * \ingroup tests
+ *
+ * \brief IPv6 RIPng SplitHorizon strategy Test
+ */
 class Ipv6RipngSplitHorizonStrategyTest : public TestCase
 {
-  RipNg::SplitHorizonType_e m_setStrategy;
-  RipNg::SplitHorizonType_e m_detectedStrategy;
+  RipNg::SplitHorizonType_e m_setStrategy;      //!< Strategy set.
+  RipNg::SplitHorizonType_e m_detectedStrategy; //!< Strategy detected.
 
 public:
   virtual void DoRun (void);
+  /**
+   * \brief Constructor.
+   * \param strategy The SplitHorizon strategy.
+   */
   Ipv6RipngSplitHorizonStrategyTest (RipNg::SplitHorizonType_e strategy);
 
+  /**
+   * \brief Receive data.
+   * \param socket The receiving socket.
+   */
   void ReceivePktProbe (Ptr<Socket> socket);
 };
 
@@ -486,11 +530,10 @@ void Ipv6RipngSplitHorizonStrategyTest::ReceivePktProbe (Ptr<Socket> socket)
 {
   uint32_t availableData;
   availableData = socket->GetRxAvailable ();
-  Ptr<Packet> receivedPacketProbe = socket->Recv (std::numeric_limits<uint32_t>::max (), 0);
+  Address srcAddr;
+  Ptr<Packet> receivedPacketProbe = socket->RecvFrom (std::numeric_limits<uint32_t>::max (), 0, srcAddr);
   NS_ASSERT (availableData == receivedPacketProbe->GetSize ());
-  SocketAddressTag tag;
-  receivedPacketProbe->RemovePacketTag (tag);
-  Ipv6Address senderAddress = Inet6SocketAddress::ConvertFrom (tag.GetAddress ()).GetIpv6 ();
+  Ipv6Address senderAddress = Inet6SocketAddress::ConvertFrom (srcAddr).GetIpv6 ();
 
   if (senderAddress == "fe80::200:ff:fe00:4")
     {
@@ -543,10 +586,8 @@ Ipv6RipngSplitHorizonStrategyTest::DoRun (void)
   RipNgHelper ripNgRouting;
   ripNgRouting.Set ("SplitHorizon", EnumValue (m_setStrategy));
 
-  Ipv6ListRoutingHelper listRH;
-  listRH.Add (ripNgRouting, 0);
   InternetStackHelper internetv6routers;
-  internetv6routers.SetRoutingHelper (listRH);
+  internetv6routers.SetRoutingHelper (ripNgRouting);
   internetv6routers.Install (routers);
 
   InternetStackHelper internetv6nodes;
@@ -621,6 +662,7 @@ Ipv6RipngSplitHorizonStrategyTest::DoRun (void)
   // Create the UDP sockets
   Ptr<SocketFactory> rxSocketFactory = listener->GetObject<UdpSocketFactory> ();
   Ptr<Socket> rxSocket = rxSocketFactory->CreateSocket ();
+  rxSocket->BindToNetDevice (listenerDev);
   NS_TEST_EXPECT_MSG_EQ (rxSocket->Bind (Inet6SocketAddress (Ipv6Address ("ff02::9"), 521)), 0, "trivial");
   rxSocket->SetRecvCallback (MakeCallback (&Ipv6RipngSplitHorizonStrategyTest::ReceivePktProbe, this));
 
@@ -636,8 +678,12 @@ Ipv6RipngSplitHorizonStrategyTest::DoRun (void)
   Simulator::Destroy ();
 }
 
-//-----------------------------------------------------------------------------
-//-----------------------------------------------------------------------------
+/**
+ * \ingroup internet-test
+ * \ingroup tests
+ *
+ * \brief IPv6 RIPng TestSuite
+ */
 class Ipv6RipngTestSuite : public TestSuite
 {
 public:
@@ -649,4 +695,6 @@ public:
     AddTestCase (new Ipv6RipngSplitHorizonStrategyTest (RipNg::SPLIT_HORIZON), TestCase::QUICK);
     AddTestCase (new Ipv6RipngSplitHorizonStrategyTest (RipNg::NO_SPLIT_HORIZON), TestCase::QUICK);
   }
-} g_ipv6ripngTestSuite;
+};
+
+static Ipv6RipngTestSuite g_ipv6ripngTestSuite; //!< Static variable for test initialization

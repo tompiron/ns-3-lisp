@@ -213,6 +213,39 @@ void LogComponentDisableAll (enum LogLevel level);
   static ns3::LogComponent g_log = ns3::LogComponent (name, __FILE__, mask)
 
 /**
+ * Declare a reference to a Log component.
+ *
+ * This macro should be used in the declaration of template classes
+ * to allow their methods (defined in an header file) to make use of
+ * the NS_LOG_* macros. This macro should be used in the private
+ * section to prevent subclasses from using the same log component
+ * as the base class.
+ */
+#define NS_LOG_TEMPLATE_DECLARE  LogComponent & g_log
+
+/**
+ * Initialize a reference to a Log component.
+ *
+ * This macro should be used in the constructor of template classes
+ * to allow their methods (defined in an header file) to make use of
+ * the NS_LOG_* macros.
+ *
+ * \param [in] name The log component name.
+ */
+#define NS_LOG_TEMPLATE_DEFINE(name)  g_log (GetLogComponent (name))
+
+/**
+ * Declare and initialize a reference to a Log component.
+ *
+ * This macro should be used in static template methods to allow their
+ * methods (defined in an header file) to make use of the NS_LOG_* macros.
+ *
+ * \param [in] name The log component name.
+ */
+#define NS_LOG_STATIC_TEMPLATE_DEFINE(name) \
+    static LogComponent & NS_UNUSED_GLOBAL (g_log) = GetLogComponent (name)
+
+/**
  * Use \ref NS_LOG to output a message of level LOG_ERROR.
  *
  * \param [in] msg The message to log.
@@ -409,7 +442,14 @@ private:
 
 };  // class LogComponent
 
-  
+/**
+ * Get the LogComponent registered with the given name.
+ *
+ * \param [in] name The name of the LogComponent.
+ * \return a reference to the requested LogComponent
+ */
+LogComponent & GetLogComponent (const std::string name);
+
 /**
  * Insert `, ` when streaming function arguments.
  */
@@ -433,21 +473,44 @@ public:
    * \return This ParameterLogger, so it's chainable.
    */
   template<typename T>
-  ParameterLogger& operator<< (T param)
-  {
-    if (m_first)
-      {
-        m_os << param;
-        m_first = false;
-      }
-    else
-      {
-        m_os << ", " << param;
-      }
-    return *this;
-  }
+  ParameterLogger& operator<< (T param);
+
 };
 
+template<typename T>
+ParameterLogger&
+ParameterLogger::operator<< (T param)
+{
+  if (m_first)
+    {
+      m_os << param;
+      m_first = false;
+    }
+  else
+    {
+      m_os << ", " << param;
+    }
+  return *this;
+}
+
+/**
+ * Specialization for strings.
+ * \param [in] param The function parameter.
+ * \return This ParameterLogger, so it's chainable.
+ */
+template<>
+ParameterLogger&
+ParameterLogger::operator<< <std::string>(const std::string param);
+  
+/**
+ * Specialization for C-strings.
+ * \param [in] param The function parameter.
+ * \return This ParameterLogger, so it's chainable.
+ */
+template<>
+ParameterLogger&
+ParameterLogger::operator<< <const char *>(const char * param);
+  
 } // namespace ns3
 
 /**@}*/  // \ingroup logging

@@ -35,10 +35,13 @@ namespace ns3 {
  * @brief Class used for synchronizing the simulation events to a real-time
  * "wall clock" using Posix clock functions.
  *
- * Enable this synchronizer using:
+ * This synchronizer is used as part of the RealtimeSimulatorImpl.  It is
+ * typically not explicitly enabled by users but instead is implicitly 
+ * enabled when the simulator implementation type is set to real-time; e.g.:
  *
  * @code
- *   DefaultValue::Bind ("Synchronizer", "WallClockSynchronizer");
+ *   GlobalValue::Bind ("SimulatorImplementationType",
+ *                      StringValue ("ns3::RealtimeSimulatorImpl"));
  * @endcode
  *
  * before calling any simulator functions.
@@ -96,7 +99,7 @@ protected:
    *
    * @param [in] ns The target normalized real time we should wait for.
    * @returns @c true if we reached the target time,
-   *          @c false if we retured because the condition was set.
+   *          @c false if we returned because the condition was set.
    */
   bool SpinWait (uint64_t ns);
   /**
@@ -120,7 +123,7 @@ protected:
    *
    * @param [in] ns The target normalized real time we should wait for.
    * @returns @c true if we reached the target time,
-   *          @c false if we retured because the condition was set.
+   *          @c false if we returned because the condition was set.
    */
   bool SleepWait (uint64_t ns);
 

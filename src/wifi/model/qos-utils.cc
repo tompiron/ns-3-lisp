@@ -20,7 +20,7 @@
  */
 
 #include "qos-utils.h"
-#include "qos-tag.h"
+#include "ns3/socket.h"
 
 namespace ns3 {
 
@@ -61,13 +61,13 @@ QosUtilsMapTidToAc (uint8_t tid)
 uint8_t
 QosUtilsGetTidForPacket (Ptr<const Packet> packet)
 {
-  QosTag qos;
+  SocketPriorityTag qos;
   uint8_t tid = 8;
   if (packet->PeekPacketTag (qos))
     {
-      if (qos.GetTid () < 8)
+      if (qos.GetPriority () < 8)
         {
-          tid = qos.GetTid ();
+          tid = qos.GetPriority ();
         }
     }
   return tid;
@@ -92,5 +92,77 @@ QosUtilsIsOldPacket (uint16_t startingSeq, uint16_t seqNumber)
   uint16_t distance = ((seqNumber - startingSeq) + 4096) % 4096;
   return (distance >= 2048);
 }
+
+/**
+ *  \brief Extraction operator for TypeId
+ *  \param [in] packet is the packet
+ *  \param [in] hdr is Wifi MAC header
+ *  \returns the TypeId of the MAC header
+ */
+uint8_t
+GetTid (Ptr<const Packet> packet, const WifiMacHeader hdr)
+{
+  NS_ASSERT (hdr.IsQosData () || packet != 0);
+  if (hdr.IsQosData ())
+    {
+      return hdr.GetQosTid ();
+    }
+  else if (hdr.IsBlockAckReq ())
+    {
+      CtrlBAckRequestHeader baReqHdr;
+      packet->PeekHeader (baReqHdr);
+      return baReqHdr.GetTidInfo ();
+    }
+  else if (hdr.IsBlockAck ())
+    {
+      CtrlBAckResponseHeader baRespHdr;
+      packet->PeekHeader (baRespHdr);
+      return baRespHdr.GetTidInfo ();
+    }
+  else if (hdr.IsMgt () && hdr.IsAction ())
+    {
+      Ptr<Packet> pkt = packet->Copy ();
+      WifiActionHeader actionHdr;
+      pkt->RemoveHeader (actionHdr);
+
+      if (actionHdr.GetCategory () == WifiActionHeader::BLOCK_ACK)
+        {
+          switch (actionHdr.GetAction ().blockAck)
+            {
+            case WifiActionHeader::BLOCK_ACK_ADDBA_REQUEST:
+              {
+                MgtAddBaResponseHeader reqHdr;
+                pkt->RemoveHeader (reqHdr);
+                return reqHdr.GetTid ();
+              }
+            case WifiActionHeader::BLOCK_ACK_ADDBA_RESPONSE:
+              {
+                MgtAddBaResponseHeader respHdr;
+                pkt->RemoveHeader (respHdr);
+                return respHdr.GetTid ();
+              }
+            case WifiActionHeader::BLOCK_ACK_DELBA:
+              {
+                MgtDelBaHeader delHdr;
+                pkt->RemoveHeader (delHdr);
+                return delHdr.GetTid ();
+              }
+            default:
+              {
+                NS_FATAL_ERROR ("Cannot extract Traffic ID from this BA action frame");
+              }
+            }
+        }
+      else
+        {
+          NS_FATAL_ERROR ("Cannot extract Traffic ID from this action frame");
+        }
+    }
+  else
+    {
+      NS_FATAL_ERROR ("Packet has no Traffic ID");
+    }
+}
+
 
 } //namespace ns3

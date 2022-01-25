@@ -44,7 +44,17 @@ using namespace ns3;
 
 NS_LOG_COMPONENT_DEFINE ("Ns3TcpLossTest");
 
+// The below boolean constants should only be changed to 'true'
+// during test debugging (i.e. do not commit the value 'true')
+
+// set to 'true' to have the test suite overwrite the response vectors
+// stored in the test directory.  This should only be done if you are
+// convinced through other means (e.g. pcap tracing or logging) that the
+// revised vectors are the correct ones.  In other words, don't simply
+// enable this to true to clear a failing test without looking at the
+// results closely.
 const bool WRITE_VECTORS = false;            // set to true to write response vectors
+const bool WRITE_PCAP = false;              // set to true to write out pcap
 const bool WRITE_LOGGING = false;            // set to true to write logging
 const uint32_t PCAP_LINK_TYPE = 1187373557; // Some large random number -- we use to verify data was written by this program
 const uint32_t PCAP_SNAPLEN   = 64;         // Don't bother to save much data
@@ -59,7 +69,9 @@ class Ns3TcpLossTestCase : public TestCase
 public:
   Ns3TcpLossTestCase ();
   Ns3TcpLossTestCase (std::string tcpModel, uint32_t testCase);
-  virtual ~Ns3TcpLossTestCase () {}
+  virtual ~Ns3TcpLossTestCase ()
+  {
+  }
 
 private:
   virtual void DoSetup (void);
@@ -81,8 +93,8 @@ private:
   void Ipv4L3Tx (std::string context, Ptr<const Packet> packet, Ptr<Ipv4> ipv4, uint32_t interface);
   void CwndTracer (uint32_t oldval, uint32_t newval);
   void WriteUntilBufferFull (Ptr<Socket> localSocket, uint32_t txSpace);
-  void StartFlow (Ptr<Socket> localSocket, 
-                  Ipv4Address servAddress, 
+  void StartFlow (Ptr<Socket> localSocket,
+                  Ipv4Address servAddress,
                   uint16_t servPort);
 
 };
@@ -93,7 +105,7 @@ Ns3TcpLossTestCase::Ns3TcpLossTestCase ()
     m_totalTxBytes (200000),
     m_currentTxBytes (0),
     m_writeVectors (WRITE_VECTORS),
-    m_writeResults (false),
+    m_writeResults (WRITE_PCAP),
     m_writeLogging (WRITE_LOGGING),
     m_needToClose (true),
     m_tcpModel ("ns3::TcpWestwood")
@@ -106,7 +118,7 @@ Ns3TcpLossTestCase::Ns3TcpLossTestCase (std::string tcpModel, uint32_t testCase)
     m_totalTxBytes (200000),
     m_currentTxBytes (0),
     m_writeVectors (WRITE_VECTORS),
-    m_writeResults (false),
+    m_writeResults (WRITE_PCAP),
     m_writeLogging (WRITE_LOGGING),
     m_needToClose (true),
     m_tcpModel (tcpModel)
@@ -116,22 +128,25 @@ Ns3TcpLossTestCase::Ns3TcpLossTestCase (std::string tcpModel, uint32_t testCase)
 void
 Ns3TcpLossTestCase::DoSetup (void)
 {
+  // This test was written before SACK was added to ns-3
+  Config::SetDefault ("ns3::TcpSocketBase::Sack", BooleanValue (false));
+
   //
   // We expect there to be a file called ns3tcp-state-response-vectors.pcap in
   // the data directory
   //
   std::ostringstream oss;
   oss << "ns3tcp-loss-" << m_tcpModel << m_testCase << "-response-vectors.pcap";
-  m_pcapFilename = CreateDataDirFilename(oss.str ());
+  m_pcapFilename = CreateDataDirFilename (oss.str ());
 
   if (m_writeVectors)
     {
-      m_pcapFile.Open (m_pcapFilename, std::ios::out|std::ios::binary);
+      m_pcapFile.Open (m_pcapFilename, std::ios::out | std::ios::binary);
       m_pcapFile.Init (PCAP_LINK_TYPE, PCAP_SNAPLEN);
     }
   else
     {
-      m_pcapFile.Open (m_pcapFilename, std::ios::in|std::ios::binary);
+      m_pcapFile.Open (m_pcapFilename, std::ios::in | std::ios::binary);
       NS_ABORT_MSG_UNLESS (m_pcapFile.GetDataLinkType () == PCAP_LINK_TYPE,
                            "Wrong response vectors in directory: opening " <<
                            m_pcapFilename);
@@ -151,9 +166,9 @@ Ns3TcpLossTestCase::Ipv4L3Tx (std::string context, Ptr<const Packet> packet, Ptr
   // We're not testing IP so remove and toss the header.  In order to do this,
   // though, we need to copy the packet since we have a const version.
   //
-  Ptr<Packet> p = packet->Copy ();
+  Ptr<Packet> received = packet->Copy ();
   Ipv4Header ipHeader;
-  p->RemoveHeader (ipHeader);
+  received->RemoveHeader (ipHeader);
 
   //
   // What is left is the TCP header and any data that may be sent.  We aren't
@@ -169,10 +184,9 @@ Ns3TcpLossTestCase::Ipv4L3Tx (std::string context, Ptr<const Packet> packet, Ptr
       int64_t tMicroSeconds = tNow.GetMicroSeconds ();
 
 
-      m_pcapFile.Write (uint32_t (tMicroSeconds / 1000000), 
-                        uint32_t (tMicroSeconds % 1000000), 
-                        p
-                        );
+      m_pcapFile.Write (uint32_t (tMicroSeconds / 1000000),
+                        uint32_t (tMicroSeconds % 1000000),
+                        received);
     }
   else
     {
@@ -180,16 +194,24 @@ Ns3TcpLossTestCase::Ipv4L3Tx (std::string context, Ptr<const Packet> packet, Ptr
       // Read the TCP under test expected response from the expected vector
       // file and see if it still does the right thing.
       //
-      uint8_t expected[PCAP_SNAPLEN];
+      uint8_t expectedBuffer[PCAP_SNAPLEN];
       uint32_t tsSec, tsUsec, inclLen, origLen, readLen;
-      m_pcapFile.Read (expected, sizeof(expected), tsSec, tsUsec, inclLen, origLen, readLen);
+      m_pcapFile.Read (expectedBuffer, sizeof(expectedBuffer), tsSec, tsUsec, inclLen, origLen, readLen);
 
-      NS_LOG_DEBUG ("read " << readLen);
+      NS_LOG_INFO ("read " << readLen << " bytes");
 
       uint8_t *actual = new uint8_t[readLen];
-      p->CopyData (actual, readLen);
+      received->CopyData (actual, readLen);
 
-      int result = memcmp (actual, expected, readLen);
+      int result = memcmp (actual, expectedBuffer, readLen);
+
+      TcpHeader expectedHeader, receivedHeader;
+      Ptr<Packet> expected = Create<Packet> (expectedBuffer, readLen);
+
+      expected->RemoveHeader (expectedHeader);
+      received->RemoveHeader (receivedHeader);
+
+      NS_LOG_DEBUG ("Expected " << expectedHeader << " received: " << receivedHeader);
 
       delete [] actual;
 
@@ -208,7 +230,7 @@ Ns3TcpLossTestCase::CwndTracer (uint32_t oldval, uint32_t newval)
 {
   if (m_writeLogging)
     {
-      *(m_osw->GetStream ()) << "Moving cwnd from " << oldval << " to " << newval 
+      *(m_osw->GetStream ()) << "Moving cwnd from " << oldval << " to " << newval
                              << " at time " << Simulator::Now ().GetSeconds ()
                              << " seconds" << std::endl;
     }
@@ -216,7 +238,7 @@ Ns3TcpLossTestCase::CwndTracer (uint32_t oldval, uint32_t newval)
 
 ////////////////////////////////////////////////////////////////////
 // Implementing an "application" to send bytes over a TCP connection
-void 
+void
 Ns3TcpLossTestCase::WriteUntilBufferFull (Ptr<Socket> localSocket, uint32_t txSpace)
 {
   while (m_currentTxBytes < m_totalTxBytes)
@@ -230,10 +252,10 @@ Ns3TcpLossTestCase::WriteUntilBufferFull (Ptr<Socket> localSocket, uint32_t txSp
       if (txAvail == 0)
         {
           return;
-        };
+        }
       if (m_writeLogging)
         {
-          std::clog << "Submitting " << toWrite 
+          std::clog << "Submitting " << toWrite
                     << " bytes to TCP socket" << std::endl;
         }
       int amountSent = localSocket->Send (0, toWrite, 0);
@@ -244,7 +266,7 @@ Ns3TcpLossTestCase::WriteUntilBufferFull (Ptr<Socket> localSocket, uint32_t txSp
     {
       if (m_writeLogging)
         {
-          std::clog << "Close socket at " 
+          std::clog << "Close socket at "
                     <<  Simulator::Now ().GetSeconds () << std::endl;
         }
       localSocket->Close ();
@@ -252,14 +274,14 @@ Ns3TcpLossTestCase::WriteUntilBufferFull (Ptr<Socket> localSocket, uint32_t txSp
     }
 }
 
-void 
+void
 Ns3TcpLossTestCase::StartFlow (Ptr<Socket> localSocket,
                                Ipv4Address servAddress,
                                uint16_t servPort)
 {
   if (m_writeLogging)
     {
-      std::clog << "Starting flow at time " 
+      std::clog << "Starting flow at time "
                 <<  Simulator::Now ().GetSeconds () << std::endl;
     }
   localSocket->Connect (InetSocketAddress (servAddress, servPort)); // connect
@@ -281,21 +303,23 @@ Ns3TcpLossTestCase::DoRun (void)
   //       s1-----------------r1-----------------k1
   //
   // Example corresponding to simulations in the paper "Simulation-based
-  // Comparisons of Tahoe, Reno, and SACK TCP 
+  // Comparisons of Tahoe, Reno, and SACK TCP
+
+  Config::SetDefault ("ns3::TcpSocketBase::Sack", BooleanValue (false));
 
   std::ostringstream tcpModel;
   tcpModel << "ns3::Tcp" << m_tcpModel;
-  if (m_tcpModel.compare("WestwoodPlus") == 0)
+  if (m_tcpModel.compare ("WestwoodPlus") == 0)
     {
-	  Config::SetDefault("ns3::TcpL4Protocol::SocketType",
-			             TypeIdValue (TcpWestwood::GetTypeId()));
-	  Config::SetDefault("ns3::TcpWestwood::ProtocolType",
-			             EnumValue(TcpWestwood::WESTWOODPLUS));
+      Config::SetDefault ("ns3::TcpL4Protocol::SocketType",
+                          TypeIdValue (TcpWestwood::GetTypeId ()));
+      Config::SetDefault ("ns3::TcpWestwood::ProtocolType",
+                          EnumValue (TcpWestwood::WESTWOODPLUS));
     }
   else
     {
-	  Config::SetDefault ("ns3::TcpL4Protocol::SocketType",
-                      StringValue (tcpModel.str ()));
+      Config::SetDefault ("ns3::TcpL4Protocol::SocketType",
+                          StringValue (tcpModel.str ()));
     }
 
   Config::SetDefault ("ns3::TcpSocket::SegmentSize", UintegerValue (1000));
@@ -308,9 +332,7 @@ Ns3TcpLossTestCase::DoRun (void)
       LogComponentEnable ("Ns3TcpLossTest", LOG_LEVEL_ALL);
       LogComponentEnable ("ErrorModel", LOG_LEVEL_DEBUG);
       LogComponentEnable ("TcpWestwood", LOG_LEVEL_ALL);
-      LogComponentEnable ("TcpNewReno", LOG_LEVEL_INFO);
-      LogComponentEnable ("TcpReno", LOG_LEVEL_INFO);
-      LogComponentEnable ("TcpTahoe", LOG_LEVEL_INFO);
+      LogComponentEnable ("TcpCongestionOps", LOG_LEVEL_INFO);
       LogComponentEnable ("TcpSocketBase", LOG_LEVEL_INFO);
     }
 
@@ -366,10 +388,10 @@ Ns3TcpLossTestCase::DoRun (void)
   // registering callbacks in function StarFlow().
   Ptr<Socket> localSocket = Socket::CreateSocket (s1r1.Get (0), TcpSocketFactory::GetTypeId ());
   localSocket->Bind ();
-  Simulator::ScheduleNow (&Ns3TcpLossTestCase::StartFlow, 
-                          this, 
-                          localSocket, 
-                          ipInterfs.GetAddress (1), 
+  Simulator::ScheduleNow (&Ns3TcpLossTestCase::StartFlow,
+                          this,
+                          localSocket,
+                          ipInterfs.GetAddress (1),
                           servPort);
 
   Config::Connect ("/NodeList/0/$ns3::Ipv4L3Protocol/Tx",
@@ -458,18 +480,6 @@ Ns3TcpLossTestSuite::Ns3TcpLossTestSuite ()
   // We can't use NS_TEST_SOURCEDIR variable here because we use subdirectories
   SetDataDir ("src/test/ns3tcp/response-vectors");
   Packet::EnablePrinting ();  // Enable packet metadata for all test cases
-
-  AddTestCase (new Ns3TcpLossTestCase ("Tahoe", 0), TestCase::QUICK);
-  AddTestCase (new Ns3TcpLossTestCase ("Tahoe", 1), TestCase::QUICK);
-  AddTestCase (new Ns3TcpLossTestCase ("Tahoe", 2), TestCase::QUICK);
-  AddTestCase (new Ns3TcpLossTestCase ("Tahoe", 3), TestCase::QUICK);
-  AddTestCase (new Ns3TcpLossTestCase ("Tahoe", 4), TestCase::QUICK);
-
-  AddTestCase (new Ns3TcpLossTestCase ("Reno", 0), TestCase::QUICK);
-  AddTestCase (new Ns3TcpLossTestCase ("Reno", 1), TestCase::QUICK);
-  AddTestCase (new Ns3TcpLossTestCase ("Reno", 2), TestCase::QUICK);
-  AddTestCase (new Ns3TcpLossTestCase ("Reno", 3), TestCase::QUICK);
-  AddTestCase (new Ns3TcpLossTestCase ("Reno", 4), TestCase::QUICK);
 
   AddTestCase (new Ns3TcpLossTestCase ("NewReno", 0), TestCase::QUICK);
   AddTestCase (new Ns3TcpLossTestCase ("NewReno", 1), TestCase::QUICK);

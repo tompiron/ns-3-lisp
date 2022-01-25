@@ -30,6 +30,7 @@
 namespace ns3 {
 
 
+/// Container for element values
 typedef std::vector<double> Values;
 
 /**
@@ -42,8 +43,8 @@ typedef std::vector<double> Values;
  * R\hspace*{-0.9ex}\rule{0.15ex}{1.5ex}\hspace*{0.9ex}}^N \rightarrow {\sf R\hspace*{-0.9ex}\rule{0.15ex}{1.5ex}\hspace*{0.9ex}}  \f$
  *
  * Every instance of this class represent a particular function \f$ g(F) \f$.
- * The domain of the function space, i.e., \f$ F \f$, is implemented by SetOfFreq.
- * The codomain of the function space is implemented by SetOfValues
+ * The domain of the function space, i.e., \f$ F \f$, is implemented by Bands.
+ * The codomain of the function space is implemented by Values.
  *
  * To every possible value of \f$ F\f$ corresponds a different Function
  * Space.
@@ -116,14 +117,14 @@ public:
   /**
    *
    *
-   * @return a const iterator pointing to the beginning of the embedded SpectrumModel
+   * @return a const iterator pointing to the beginning of the embedded Bands
    */
   Bands::const_iterator ConstBandsBegin () const;
 
   /**
    *
    *
-   * @return a const iterator pointing to the end of the embedded SpectrumModel
+   * @return a const iterator pointing to the end of the embedded Bands
    */
   Bands::const_iterator ConstBandsEnd () const;
 
@@ -131,28 +132,28 @@ public:
   /**
    *
    *
-   * @return a const iterator pointing to the beginning of the embedded SpectrumModel
+   * @return a const iterator pointing to the beginning of the embedded Values
    */
   Values::const_iterator ConstValuesBegin () const;
 
   /**
    *
    *
-   * @return a const iterator pointing to the end of the embedded SpectrumModel
+   * @return a const iterator pointing to the end of the embedded Values
    */
   Values::const_iterator ConstValuesEnd () const;
 
   /**
    *
    *
-   * @return an iterator pointing to the beginning of the embedded SpectrumModel
+   * @return an iterator pointing to the beginning of the embedded Values
    */
   Values::iterator ValuesBegin ();
 
   /**
    *
    *
-   * @return an iterator pointing to the end of the embedded SpectrumModel
+   * @return an iterator pointing to the end of the embedded Values
    */
   Values::iterator ValuesEnd ();
 
@@ -283,7 +284,7 @@ public:
   /**
    * unary plus operator
    *
-   *
+   * @param rhs Right Hand Side of the operator
    * @return the value of *this
    */
   friend SpectrumValue operator+ (const SpectrumValue& rhs);
@@ -291,7 +292,7 @@ public:
   /**
    * unary minus operator
    *
-   *
+   * @param rhs Right Hand Side of the operator
    * @return the value of - *this
    */
   friend SpectrumValue operator- (const SpectrumValue& rhs);
@@ -452,7 +453,6 @@ public:
 
   /**
    *
-   *
    * @param lhs the base
    * @param rhs the exponent
    *
@@ -515,33 +515,94 @@ public:
 
 
 private:
+  /**
+   * Add a SpectrumValue (element to element addition)
+   * \param x SpectrumValue
+   */
   void Add (const SpectrumValue& x);
+  /**
+   * Add a flat value to all the current elements
+   * \param s flat value
+   */
   void Add (double s);
+  /**
+   * Subtracts a SpectrumValue (element by element subtraction)
+   * \param x SpectrumValue
+   */
   void Subtract (const SpectrumValue& x);
+  /**
+   * Subtracts a flat value to all the current elements
+   * \param s flat value
+   */
   void Subtract (double s);
+  /**
+   * Multiplies for a SpectrumValue (element to element multiplication)
+   * \param x SpectrumValue
+   */
   void Multiply (const SpectrumValue& x);
+  /**
+   * Multiplies for a flat value to all the current elements
+   * \param s flat value
+   */
   void Multiply (double s);
+  /**
+   * Divides by a SpectrumValue (element to element division)
+   * \param x SpectrumValue
+   */
   void Divide (const SpectrumValue& x);
+  /**
+   * Divides by a flat value to all the current elements
+   * \param s flat value
+   */
   void Divide (double s);
+  /**
+   * Change the values sign
+   */
   void ChangeSign ();
+  /**
+   * Shift the values to the left
+   */
   void ShiftLeft (int n);
+  /**
+   * Shift the values to the right
+   */
   void ShiftRight (int n);
+  /**
+   * Modifies each element so that it each element is raised to the exponent
+   *
+   * \param exp the exponent
+   */
   void Pow (double exp);
+  /**
+   * Modifies each element so that it is
+   * the base raised to each element value
+   *
+   * \param base the base
+   */
   void Exp (double base);
+  /**
+   * Applies a Log10 to each the elements
+   */
   void Log10 ();
+  /**
+   * Applies a Log2 to each the elements
+   */
   void Log2 ();
+  /**
+   * Applies a Log to each the elements
+   */
   void Log ();
 
-  Ptr<const SpectrumModel> m_spectrumModel;
+  Ptr<const SpectrumModel> m_spectrumModel; //!< The spectrum model
 
 
-/**
- * Set of values which implement the codomain of the functions in
- * the Function Space defined by SpectrumValue. There is no restriction
- * on what these values represent (a transmission power density, a
- * propagation loss, etc.).
- *
- */
+  /**
+   * Set of values which implement the codomain of the functions in
+   * the Function Space defined by SpectrumValue. There is no restriction
+   * on what these values represent (a transmission power density, a
+   * propagation loss, etc.).
+   *
+   */
   Values m_values;
 
 

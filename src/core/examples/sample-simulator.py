@@ -20,16 +20,23 @@
 # 
 # Python version of sample-simulator.cc
 
+## \file
+#  \ingroup core-examples
+#  \ingroup simulator
+#  Python example program demonstrating use of various Schedule functions.
+
+
 import ns.core
 
 class MyModel(object):
     """Simple model object to illustrate event handling."""
 
-    ## \returns None.
+    ## \return None.
     def Start(self):
         """Start model execution by scheduling a HandleEvent."""
         ns.core.Simulator.Schedule(ns.core.Seconds(10.0), self.HandleEvent, ns.core.Simulator.Now().GetSeconds())
 
+    ## \param [in] self This instance of MyModel
     ## \param [in] value Event argument.
     ## \return None.
     def HandleEvent(self, value):
@@ -48,7 +55,8 @@ def CancelledEvent():
     print "I should never be called... "
 
 def main(dummy_argv):
-
+    ns.core.CommandLine().Parse(dummy_argv)
+    
     model = MyModel()
     v = ns.core.UniformRandomVariable()
     v.SetAttribute("Min", ns.core.DoubleValue (10))

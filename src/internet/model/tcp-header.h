@@ -47,6 +47,8 @@ public:
   TcpHeader ();
   virtual ~TcpHeader ();
 
+  typedef std::list< Ptr<const TcpOption> > TcpOptionList; //!< List of TcpOption
+
   /**
    * \brief Print a TCP header into an output stream
    *
@@ -54,7 +56,7 @@ public:
    * \param tc TCP header to print
    * \return The ostream passed as first argument
    */
-  friend std::ostream& operator<<(std::ostream& os, TcpHeader const & tc);
+  friend std::ostream& operator<< (std::ostream& os, TcpHeader const & tc);
 
   /**
    * \brief Converts an integer into a human readable list of Tcp flags
@@ -183,7 +185,25 @@ public:
    * \param kind the option to retrieve
    * \return Whether the header contains a specific kind of option, or 0
    */
-  Ptr<TcpOption> GetOption (uint8_t kind) const;
+  Ptr<const TcpOption> GetOption (uint8_t kind) const;
+
+  /**
+   * \brief Get the list of option in this header
+   * \return a const reference to the option list
+   */
+  const TcpOptionList& GetOptionList (void) const;
+
+  /**
+   * \brief Get the total length of appended options
+   * \return the total length of options appended to this TcpHeader
+   */
+  uint8_t GetOptionLength () const;
+
+  /**
+   * \brief Get maximum option length
+   * \return the maximum option length
+   */
+  uint8_t GetMaxOptionLength () const;
 
   /**
    * \brief Check if the header has the option specified
@@ -197,7 +217,7 @@ public:
    * \param option The option to append
    * \return true if option has been appended, false otherwise
    */
-  bool AppendOption (Ptr<TcpOption> option);
+  bool AppendOption (Ptr<const TcpOption> option);
 
   /**
    * \brief Initialize the TCP checksum.
@@ -328,11 +348,9 @@ private:
   bool m_calcChecksum;    //!< Flag to calculate checksum
   bool m_goodChecksum;    //!< Flag to indicate that checksum is correct
 
-
-  typedef std::list< Ptr<TcpOption> > TcpOptionList; //!< List of TcpOption
-  TcpOptionList m_options; //!< TcpOption present in the header
-  uint8_t m_optionsLen; //!< Tcp options length.
-  static const uint8_t m_maxOptionsLen = 40; //!< Maximum options length
+  static const uint8_t m_maxOptionsLen = 40;         //!< Maximum options length
+  TcpOptionList m_options;     //!< TcpOption present in the header
+  uint8_t m_optionsLen;        //!< Tcp options length.
 };
 
 } // namespace ns3

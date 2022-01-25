@@ -18,9 +18,7 @@
  * Author: Mathieu Lacage <mathieu.lacage@sophia.inria.fr>
  */
 
-#include "ns3/object.h"
 #include "ns3/log.h"
-#include "ns3/uinteger.h"
 #include "net-device.h"
 
 namespace ns3 {
