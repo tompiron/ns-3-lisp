@@ -34,27 +34,17 @@ RlocMetrics::RlocMetrics () :
 
 }
 
-RlocMetrics::RlocMetrics (uint8_t priority, uint8_t weight)
+RlocMetrics::RlocMetrics (uint8_t priority, uint8_t weight) : RlocMetrics ()
 {
   m_priority = priority;
   m_weight = weight;
-  // by default locator is up
-  m_rlocIsUp = true;
-  // mtu not set yet
-  m_mtu = 0;
 }
 
 RlocMetrics::RlocMetrics (uint8_t priority, uint8_t mpriority, uint8_t weight,
-                          uint8_t mweight)
+                          uint8_t mweight) : RlocMetrics (priority, weight)
 {
   m_mpriority = mpriority;
   m_mweight = mweight;
-  m_priority = priority;
-  m_weight = weight;
-  // by default locator is up
-  m_rlocIsUp = true;
-  // mtu not set yet
-  m_mtu = 0;
 }
 
 RlocMetrics::RlocMetrics (uint8_t priority, uint8_t weight, bool reachable)

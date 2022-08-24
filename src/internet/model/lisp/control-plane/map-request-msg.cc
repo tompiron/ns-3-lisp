@@ -511,6 +511,4 @@ LispControlMsg::LispControlMsgType MapRequestMsg::GetMsgType (void)
   return LispControlMsg::MAP_REQUEST;
 }
 
-
-
 } /* namespace ns3 */

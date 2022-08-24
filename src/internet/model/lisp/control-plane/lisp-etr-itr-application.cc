@@ -811,6 +811,7 @@ void LispEtrItrApplication::SendInvokedSmrMsg (Ptr<MapRequestMsg> smr)
   // We just need to change SMR-invoked bit as 1 and change the source ITR's address
   //TODO: now I'm lost about defintion of m_mapResolverRlocs...
   smr->SetS2 (1);
+  smr->SetS (0);
   Address itrAddress = GetLocalAddress (
     m_mapResolverRlocs.front ()->GetRlocAddress ());
   if (Ipv4Address::IsMatchingType (itrAddress))
@@ -877,13 +878,14 @@ void LispEtrItrApplication::HandleMapSockRead (Ptr<Socket> lispMappingSocket)
           // Means that: in kernel space, CacheLookup has been tried, but find nothing... => MAPM_MISS
           // To support LISP-MN, we allows map request for each EID can be up to 3 times
           Ptr<EndpointId> eid = msg->GetEndPointId ();
+          NS_LOG_DEBUG ("Received miss for " << eid->Print ());
           uint8_t currRqstNb = 0;
           if (IsInRequestList (eid))
             {
               currRqstNb = GetRequestCount (eid);
             }
           if (not IsInRequestList (eid)
-              or currRqstNb != LispEtrItrApplication::MAX_REQUEST_NB)
+              or currRqstNb < LispEtrItrApplication::MAX_REQUEST_NB)
             {
               NS_LOG_DEBUG (
                 "Remote EID" << eid->Print () << " has been requested " << unsigned(currRqstNb) << " times. Start to generate map request message.");
@@ -907,7 +909,6 @@ void LispEtrItrApplication::HandleMapSockRead (Ptr<Socket> lispMappingSocket)
                   // Increment by 1
                   m_requestCounter.find (eid)->second++;
                 }
-              // why each time we want to send map request we bind and connect socket operations??
               SendMapRequest (mapReqMsg);
               NS_LOG_DEBUG (
                 "Hence, A Mapping request has been sent in control plan to query for EID..." << msg->GetEndPointId ()->Print ());
@@ -1246,7 +1247,7 @@ LispEtrItrApplication::GenerateMapRequest (Ptr<EndpointId> eid)
   uint8_t maskLength = 0;
   if (Ipv4Address::IsMatchingType (eidAddress))
     {
-      maskLength = 32;
+      maskLength = eid->GetIpv4Mask ().GetPrefixLength ();
     }
   else if (Ipv6Address::IsMatchingType (eidAddress))
     {

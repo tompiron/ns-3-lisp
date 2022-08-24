@@ -99,6 +99,20 @@ public:
    */
   bool IsIpv4 (void) const;
 
+  /*
+   * Return the length of the mask of this EndpointId.
+   *
+   * \returns the length of the mask of this EndpointId.
+   */
+  uint16_t GetMaskLength () const;
+
+  /*
+   * Return true if this EndpointId is included in the range given.
+   *
+   * \returns True if this EndpointId is included in eidRange.
+   */
+  bool IsIncludedIn (const EndpointId &eidRange) const;
+
   /**
    * \brief This method returns a character string representation of this EID prefix.
    *

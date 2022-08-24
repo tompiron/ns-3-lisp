@@ -29,6 +29,11 @@ MapRegisterMsg::MapRegisterMsg ()
   m_nonce = 0;
   m_recordCount = 0;
   m_record = 0;
+
+  reserved = 0;
+  m_keyID = 0;
+  m_authDataLen = 0;
+  m_authData = 0;
 }
 
 MapRegisterMsg::~MapRegisterMsg ()

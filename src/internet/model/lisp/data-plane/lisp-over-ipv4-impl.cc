@@ -550,6 +550,7 @@ LispOverIpv4::MapStatus LispOverIpv4Impl::IsMapForEncapsulation (Ipv4Header cons
 
       Ptr<MappingSocketMsg> mapSockMsg = Create<MappingSocketMsg> ();
       mapSockMsg->SetEndPoint (Create<EndpointId> (static_cast<Address> (innerHeader.GetDestination ())));
+      mapSockMsg->GetEndPointId ()->SetIpv4Mask (Ipv4Mask ("255.255.255.255"));
       mapSockMsg->SetLocators (0);
       NS_LOG_DEBUG ("[MapForEncap] EID not found " << innerHeader.GetDestination ());
       uint8_t buf[64];

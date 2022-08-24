@@ -86,6 +86,41 @@ bool EndpointId::IsIpv4 (void) const
   return Ipv4Address::IsMatchingType (m_eidAddress);
 }
 
+uint16_t EndpointId::GetMaskLength () const
+{
+  if (this->IsIpv4 ())
+    {
+      Ipv4Mask mask = this->GetIpv4Mask ();
+      return mask.GetPrefixLength ();
+    }
+  else
+    {
+      Ipv6Prefix prefix = this->GetIpv6Prefix ();
+      return prefix.GetPrefixLength ();
+    }
+}
+
+bool EndpointId::IsIncludedIn (const EndpointId &eidRange) const
+{
+  if (this->IsIpv4 () == eidRange.IsIpv4 ())
+    {
+      if (this->IsIpv4 ())
+        {
+          Ipv4Mask mask = eidRange.GetIpv4Mask ();
+          return mask.IsMatch (Ipv4Address::ConvertFrom (eidRange.GetEidAddress ()), Ipv4Address::ConvertFrom (this->GetEidAddress ()));
+        }
+      else
+        {
+          Ipv6Prefix prefix = eidRange.GetIpv6Prefix ();
+          return prefix.IsMatch (Ipv6Address::ConvertFrom (eidRange.GetEidAddress ()), Ipv6Address::ConvertFrom (this->GetEidAddress ()));
+        }
+    }
+  else
+    {
+      return false;
+    }
+}
+
 std::string EndpointId::Print (void) const
 {
   std::string eid = "EID prefix: ";

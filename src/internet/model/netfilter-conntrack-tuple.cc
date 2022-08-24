@@ -26,11 +26,18 @@ namespace ns3 {
 
 NetfilterConntrackTuple::NetfilterConntrackTuple ()
 {
+  m_l3Source = Ipv4Address ("0.0.0.0");
+  m_l3Protocol = 0;
   m_l4Source = 0;
+
+  m_l3Destination = Ipv4Address ("0.0.0.0");
   m_l4Destination = 0;
+  m_protocolNumber = 0;
+  m_direction = 0;
 }
 
-NetfilterConntrackTuple::NetfilterConntrackTuple (Ipv4Address src, uint16_t srcPort, Ipv4Address dst, uint16_t dstPort)
+NetfilterConntrackTuple::NetfilterConntrackTuple (Ipv4Address src, uint16_t srcPort, Ipv4Address dst, uint16_t dstPort) :
+  NetfilterConntrackTuple ()
 {
   m_l3Source = src;
   m_l4Source = srcPort;

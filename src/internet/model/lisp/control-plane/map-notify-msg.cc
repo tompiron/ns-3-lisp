@@ -118,6 +118,7 @@ MapNotifyMsg::Serialize (uint8_t *buf)
   buf[12] = (m_keyID >> 8) & 0xff;
   buf[13] = m_keyID & 0xff;
 
+  m_authDataLen = 4; // AuthData is hard coded so, we should hard code the length too.
   for (uint8_t i = 0; i < MapNotifyMsg::AUTHEN_LEN_SIZE; i++)
     {
       buf[14 + i] = (m_authDataLen >> 8 * (MapNotifyMsg::AUTHEN_LEN_SIZE - 1 - i)) & 0xff;
