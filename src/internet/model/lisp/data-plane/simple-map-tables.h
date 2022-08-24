@@ -101,8 +101,6 @@ public:
   SetEntry (const Address &eid, const Ipv6Prefix &prefix,
             Ptr<MapEntry> mapEntry, MapEntryLocation location);
 
-
-  Ptr<LispEtrItrApplication> GetxTRApp ();
   void SetxTRApp (Ptr<LispEtrItrApplication> xTRApp);
 
   // Insert Locator
@@ -149,19 +147,9 @@ private:
   SystemMutex m_mutexDatabase;
   std::map<Ptr<EndpointId>, Ptr<MapEntry>, CompareEndpointId> m_mappingCache;
   std::map<Ptr<EndpointId>, Ptr<MapEntry>, CompareEndpointId> m_mappingDatabase;
-  Ptr<LispEtrItrApplication> m_xTRApp;
-
-
-
+  LispEtrItrApplication* m_xTRApp;
 };
 
-/**
-   *
-   */
-
-/**
-   *
-   */
 class MapEntryImpl : public MapEntry
 {
 public:

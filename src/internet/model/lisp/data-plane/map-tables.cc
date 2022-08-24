@@ -42,12 +42,12 @@ MapTables::~MapTables (void)
 
 Ptr<LispOverIp> MapTables::GetLispOverIp (void)
 {
-  return m_lispProtocol;
+  return m_node->GetObject<LispOverIp>();
 }
 
 void MapTables::SetLispOverIp (Ptr<LispOverIp> lispProtocol)
 {
-  m_lispProtocol = lispProtocol;
+  m_node = PeekPointer (lispProtocol->GetObject<Node>());
 }
 
 

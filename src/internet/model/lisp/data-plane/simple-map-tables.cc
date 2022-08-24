@@ -20,7 +20,8 @@
 
 #include "ns3/simple-map-tables.h"
 
-#include "ns3/ptr.h"
+
+#include "ns3/core-module.h"
 #include "ns3/ipv4.h"
 #include "ns3/ipv4-header.h"
 #include "ns3/ipv4-interface-address.h"
@@ -55,7 +56,7 @@ TypeId SimpleMapTables::GetTypeId ()
   return tid;
 }
 
-SimpleMapTables::SimpleMapTables ()
+SimpleMapTables::SimpleMapTables () : m_xTRApp (nullptr)
 {
   NS_LOG_FUNCTION (this);
 }
@@ -187,15 +188,9 @@ SimpleMapTables::WipeCache (void)
   m_mappingCache.clear ();
 }
 
-
-Ptr<LispEtrItrApplication> SimpleMapTables::GetxTRApp ()
-{
-  return m_xTRApp;
-}
-
 void SimpleMapTables::SetxTRApp (Ptr<LispEtrItrApplication> xTRApp)
 {
-  m_xTRApp = xTRApp;
+  m_xTRApp = PeekPointer (xTRApp);
 }
 
 // Set an ipv4 eid
@@ -274,7 +269,7 @@ void SimpleMapTables::SetEntry (const Address &eidAddress, const Ipv4Mask &mask,
               // Should verify if queriedEid belongs to eidAddress (which is a prefix)
               if (eidAddressIpv4.IsEqual (queriedEidPrefix))
                 {
-                  GetxTRApp ()->SendInvokedSmrMsg (requestMsg);
+                  m_xTRApp->SendInvokedSmrMsg (requestMsg);
                   NS_LOG_DEBUG ("Now a buffered invoked-SMR has been sent... ");
                   //Don't forget to delete the sent invoked-SMR
 //					m_mapReqMsg.remove(*it);

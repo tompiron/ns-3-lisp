@@ -226,7 +226,10 @@ LispOverIp::NotifyNewAggregate ()
 void
 LispOverIp::DoDispose (void)
 {
-
+  m_node = 0;
+  m_sockets.clear ();
+  m_lispSocket = 0;
+  Object::DoDispose ();
 }
 
 Ptr<Socket>

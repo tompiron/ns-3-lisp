@@ -390,7 +390,7 @@ MapServerDdt::HandleReadFromClient (Ptr<Socket> socket)
           Ptr<InfoRequestMsg> infoReply = GenerateInfoReplyMsg (msg, iaddr.GetPort (), iaddr.GetIpv4 (), maddr);
 
           uint8_t BUF_SIZE = 16 + infoReply->GetAuthDataLen () + 20 + infoReply->GetNatLcaf ()->GetLength ();
-          uint8_t *newBuf = new uint8_t[BUF_SIZE];
+          uint8_t newBuf[BUF_SIZE];
           infoReply->Serialize (newBuf);
           Ptr<Packet> reactedPacket = Create<Packet> (newBuf, BUF_SIZE);
           socket->SendTo (reactedPacket, 0, from);

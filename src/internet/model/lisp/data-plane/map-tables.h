@@ -102,7 +102,6 @@ public:
    * http://www.cplusplus.com/doc/tutorial/polymorphism/
    * In its dervied class, no need to declare the following two methods again.
    */
-  virtual Ptr<LispEtrItrApplication> GetxTRApp () = 0;
   virtual void SetxTRApp (Ptr<LispEtrItrApplication> xTRApp) = 0;
 
   void DbMiss (void);
@@ -219,7 +218,7 @@ public:
 //  Ptr<LispEtrItrApplication> m_xTRApp;
 
 private:
-  Ptr<LispOverIp> m_lispProtocol;
+  Node* m_node;
 
 
   uint32_t m_dbMiss;    // # failed lookups in db

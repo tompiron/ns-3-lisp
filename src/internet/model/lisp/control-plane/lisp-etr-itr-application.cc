@@ -315,7 +315,7 @@ void LispEtrItrApplication::SendInfoRequest (void)
 
   // Compute number of bytes of InfoRequestMsg
   uint8_t BUF_SIZE = 16 + infoRequest->GetAuthDataLen () + 16;
-  uint8_t *buf = new uint8_t[BUF_SIZE];
+  uint8_t buf[BUF_SIZE];
   infoRequest->Serialize (buf);
 
   Ptr<Packet> p = Create<Packet> (buf, BUF_SIZE);
@@ -374,7 +374,7 @@ void LispEtrItrApplication::SendMapRegisters (bool rtr)
          */
       uint8_t BUF_SIZE = 16 + msg->GetAuthDataLen () + 16
         + 12 * msg->GetRecord ()->GetLocatorCount ();
-      uint8_t *buf = new uint8_t[BUF_SIZE];
+      uint8_t buf[BUF_SIZE];
       //std::memset(buf, 0, sizeof(buf));
       msg->Serialize (buf);
       Ptr<Packet> p = Create<Packet> (buf, BUF_SIZE);
