@@ -1,0 +1,51 @@
+#!/bin/bash
+
+# To install create a .git/hooks/pre-commit with the following content.
+#
+# #!/bin/bash
+# githook/pre-commit
+
+if git rev-parse --verify HEAD >/dev/null 2>&1
+then
+	against=HEAD
+else
+	# Initial commit: diff against an empty tree object
+	against=$(git hash-object -t tree /dev/null)
+fi
+
+exec 1>&2
+
+global_result=0
+while read line; do
+  object=$(echo $line | awk '{print $4}')
+  file=$(echo $line | awk '{print $6}')
+  filename=$(echo $file | awk -F/ '{print $NF}')
+  if [[ $object != "0000000000000000000000000000000000000000" ]]; then
+    inspect=0
+    for ex in "\.cc" "\.h"; do
+      echo $filename | grep -Poe $ex > /dev/null
+      if [[ $? == 0 ]]; then
+        inspect=1
+      fi
+    done
+    if [[ $inspect == 1 ]]; then
+      tmp=$(mktemp -t "tmp.XXXXXXXXX.$filename")
+      git cat-file -p $object > "$tmp"
+      result=$(python3 utils/check-style.py --diff -l3 -f $tmp)
+      if [[ -n "$result" ]]; then
+        echo "    $file"
+        if [[ $1 == "--correct" ]]; then
+          python3 utils/check-style.py -i -l3 -f $file
+        fi
+        global_result=1
+      fi
+    fi
+  fi
+done <<< $(git diff-index --cached $against --)
+
+if [[ $global_result == 1 ]]; then
+  echo "Bad coding style found in the above file(s)."
+  echo "Run 'githook/pre-commit --correct' to correct automatically."
+fi
+
+exit $global_result

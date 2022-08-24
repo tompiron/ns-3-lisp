@@ -56,7 +56,7 @@ finally:
 
 cflags.profiles = {
     # profile name: [optimization_level, warnings_level, debug_level]
-    'debug':     [0, 2, 3],
+    'debug':     [0, 1, 3],
     'optimized': [3, 2, 1],
     'release':   [3, 2, 0],
     }
