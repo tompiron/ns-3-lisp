@@ -185,6 +185,21 @@ MapServerDdt::GenerateMapNotifyMsg (Ptr<MapRegisterMsg> msg)
   return mapNotify;
 }
 
+void MapServerDdt::SendTo (Address address, uint16_t port, Ptr<Packet> packet)
+{
+  if (Ipv4Address::IsMatchingType (address) == true)
+    {
+      m_socket->Bind ();
+      m_socket->Connect (InetSocketAddress (Ipv4Address::ConvertFrom (address), port));
+    }
+  else if (Ipv6Address::IsMatchingType (address) == true)
+    {
+      m_socket->Bind6 ();
+      m_socket->Connect (Inet6SocketAddress (Ipv6Address::ConvertFrom (address), port));
+    }
+  this->Send (packet);
+}
+
 void
 MapServerDdt::Send (Ptr<Packet> p)
 {
@@ -294,22 +309,14 @@ MapServerDdt::HandleReadFromClient (Ptr<Socket> socket)
               NS_ASSERT_MSG (
                 entry != 0,
                 "Impossible!!!Map Server should be alaways find the RLOC to send Map Notify");
-              Ptr<Locator> locator =
-                entry->GetLocators ()->SelectFirsValidRloc ();
+
+              Ptr<Locator> locator = entry->GetLocators ()->SelectFirsValidRloc ();
               NS_LOG_DEBUG (
                 "Send Map Notify message to ETR " << Ipv4Address::ConvertFrom (locator->GetRlocAddress ()));
-              MapResolver::ConnectToPeerAddress (locator->GetRlocAddress (),
-                                                 m_peerPort, m_socket);
-              Ptr<Packet> reqPacket = Create<Packet> (buf,
-                                                      packet->GetSize ());
-
-              MapResolver::ConnectToPeerAddress (locator->GetRlocAddress (),
-                                                 m_peerPort, m_socket);
               uint8_t buf[256];
               mapNotifyMsg->Serialize (buf);
               Ptr<Packet> packet = Create<Packet> (buf, 256);
-              //Don't forget to make socket connect to the xTR which send map register message.
-              Send (packet);
+              SendTo (locator->GetRlocAddress (), m_peerPort, packet);
               NS_LOG_DEBUG (
                 "Map Register message M bit is 1=> A Map notify message has been sent back");
             }
@@ -332,24 +339,21 @@ MapServerDdt::HandleReadFromClient (Ptr<Socket> socket)
           if (entry == 0)
             {
               NS_LOG_DEBUG ("Send Negative Map-Reply");
-              MapResolver::ConnectToPeerAddress (
-                requestMsg->GetItrRlocAddrIp (), m_peerPort, m_socket);
 
               Ptr<MapReplyMsg> mapReply = GenerateNegMapReply (requestMsg);
               uint8_t newBuf[256];
               mapReply->Serialize (newBuf);
               Ptr<Packet> reactedPacket = Create<Packet> (newBuf, 256);
-              Simulator::Schedule (Seconds (m_searchTimeVariable->GetValue ()), &MapServerDdt::Send, this, reactedPacket);
+              Simulator::Schedule (Seconds (m_searchTimeVariable->GetValue ()), &MapServerDdt::SendTo,
+                                   this, requestMsg->GetItrRlocAddrIp (), m_peerPort, reactedPacket);
             }
           else
             {
               Ptr<Locator> locator = entry->GetLocators ()->SelectFirsValidRloc ();
               NS_LOG_DEBUG ("Forward Map-Request to ETR " << Ipv4Address::ConvertFrom (locator->GetRlocAddress ()));
-              MapResolver::ConnectToPeerAddress (locator->GetRlocAddress (),
-                                                 m_peerPort, m_socket);
-              Ptr<Packet> reqPacket = Create<Packet> (buf,
-                                                      packet->GetSize ());
-              Simulator::Schedule (Seconds (m_searchTimeVariable->GetValue ()), &MapServerDdt::Send, this, reqPacket);
+              Ptr<Packet> reqPacket = Create<Packet> (buf, packet->GetSize ());
+              Simulator::Schedule (Seconds (m_searchTimeVariable->GetValue ()), &MapServerDdt::SendTo,
+                                       this, locator->GetRlocAddress (), m_peerPort, reqPacket);
             }
         }
       else if (msg_type

@@ -107,6 +107,8 @@ public:
 
   void SendToLisp (Ptr<Packet> packet);
 
+  void SendTo (Address address, uint16_t port, Ptr<Packet> packet);
+
   void Send (Ptr<Packet> packet);
 
   /**

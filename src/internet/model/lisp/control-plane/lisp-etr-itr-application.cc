@@ -318,10 +318,8 @@ void LispEtrItrApplication::SendInfoRequest (void)
   uint8_t *buf = new uint8_t[BUF_SIZE];
   infoRequest->Serialize (buf);
 
-  MapResolver::ConnectToPeerAddress (m_mapServerAddress.front (),
-                                     LispOverIp::LISP_SIG_PORT, m_socket);
   Ptr<Packet> p = Create<Packet> (buf, BUF_SIZE);
-  m_socket->Send (p);
+  this->SendTo (m_mapServerAddress.front (), LispOverIp::LISP_SIG_PORT, p);
   NS_LOG_DEBUG (
     "InfoRequest message sent to " << Ipv4Address::ConvertFrom (m_mapServerAddress.front ()));
   ++m_sent;
@@ -379,14 +377,13 @@ void LispEtrItrApplication::SendMapRegisters (bool rtr)
       uint8_t *buf = new uint8_t[BUF_SIZE];
       //std::memset(buf, 0, sizeof(buf));
       msg->Serialize (buf);
-      MapResolver::ConnectToPeerAddress (m_mapServerAddress.front (),
-                                         LispOverIp::LISP_SIG_PORT, m_socket);
       Ptr<Packet> p = Create<Packet> (buf, BUF_SIZE);
 
       /* --- Tracing --- */
       m_mapRegisterTxTrace (p);
 
-      m_socket->Send (p);
+      Simulator::Schedule (Seconds (m_rttVariable->GetValue () / 2), &LispEtrItrApplication::SendTo,
+                           this, m_mapServerAddress.front (), LispOverIp::LISP_SIG_PORT, p);
       NS_LOG_DEBUG (
         "Map-Register message sent to " << Ipv4Address::ConvertFrom (m_mapServerAddress.front ()));
     }
@@ -427,6 +424,7 @@ void LispEtrItrApplication::HandleReadControlMsg (Ptr<Socket> socket)
         {
           Ptr<MapRequestMsg> requestMsg = MapRequestMsg::Deserialize (buf);
           Ptr<Packet> reactedPacket;
+          Address destination;
           /**
          * After reception of a map request, the possible reactions:
          * 1) A conventional map reply
@@ -441,14 +439,12 @@ void LispEtrItrApplication::HandleReadControlMsg (Ptr<Socket> socket)
           if (requestMsg->GetItrRlocAddrIp ()
               != static_cast<Address> (Ipv4Address ()))
             {
-              MapResolver::ConnectToPeerAddress (
-                requestMsg->GetItrRlocAddrIp (), m_peerPort, m_socket);
+              destination = requestMsg->GetItrRlocAddrIp ();
             }
           else if ((requestMsg->GetItrRlocAddrIpv6 ()
                     != static_cast<Address> (Ipv6Address ())))
             {
-              MapResolver::ConnectToPeerAddress (
-                requestMsg->GetItrRlocAddrIpv6 (), m_peerPort, m_socket);
+              destination = requestMsg->GetItrRlocAddrIpv6 ();
             }
           else
             {
@@ -477,7 +473,9 @@ void LispEtrItrApplication::HandleReadControlMsg (Ptr<Socket> socket)
                     {
                       mapReply->Serialize (newBuf);
                       reactedPacket = Create<Packet> (newBuf, 256);
-                      Send (reactedPacket);
+
+                      Simulator::Schedule (Seconds (m_rttVariable->GetValue () / 2), &LispEtrItrApplication::SendTo,
+                                           this, destination, m_peerPort, reactedPacket);
                       //TODO: we should add check for the return value of Send method.
                       // Since it is possible that map reply has not been sent due to cache miss...
                       NS_LOG_DEBUG (
@@ -566,9 +564,10 @@ void LispEtrItrApplication::HandleReadControlMsg (Ptr<Socket> socket)
                   reactedPacket = Create<Packet> (newBuf, 256);
 
                   /* --- Artificial delay for SMR procedure --- */
-                  Simulator::Schedule (Seconds (m_rttVariable->GetValue () / 2), &LispEtrItrApplication::Send, this, reactedPacket);
+                  Simulator::Schedule (Seconds (m_rttVariable->GetValue () / 2), &LispEtrItrApplication::SendTo,
+                                       this, destination, m_peerPort, reactedPacket);
                   NS_LOG_DEBUG (
-                    "A Map Reply Message Sent to " << Ipv4Address::ConvertFrom (requestMsg->GetItrRlocAddrIp ()) << " in response to an invoked SMR");
+                    "A Map Reply Message Sent to " << Ipv4Address::ConvertFrom (destination) << " in response to an invoked SMR");
                 }
               else
                 {
@@ -775,13 +774,9 @@ void LispEtrItrApplication::SendSmrMsg ()
       uint8_t bufMapReq[64];
       mapReqMsg->Serialize (bufMapReq);
       Ptr<Packet> packetSmrMsg = Create<Packet> (bufMapReq, 64);
-
-      MapResolver::ConnectToPeerAddress (dstRlocAddr,
-                                         LispOverIp::LISP_SIG_PORT, m_socket);
-      // Before sending map message, first should make sure the m_socket connect to the correct @IP and port number!
-      Send (packetSmrMsg);
+      Simulator::Schedule (Seconds (m_rttVariable->GetValue () / 2), &LispEtrItrApplication::SendTo,
+                           this, dstRlocAddr, m_peerPort, packetSmrMsg);
       NS_LOG_DEBUG ("A SMR message has been sent to PITR " << dstRlocAddr);
-
     }
 
 }
@@ -842,8 +837,7 @@ void LispEtrItrApplication::SendInvokedSmrMsg (Ptr<MapRequestMsg> smr)
    * impact to handover performance...
    */
 
-  /* --- Artificial delay for SMR procdure --- */
-  Simulator::Schedule (Seconds (m_rttVariable->GetValue () / 2), &LispEtrItrApplication::Send, this, reactedPacket);
+  this->SendTo (m_mapResolverRlocs.front ()->GetRlocAddress (), LispOverIp::LISP_SIG_PORT, reactedPacket);
   NS_LOG_DEBUG (
     "Invoked Map Request Message Sent to " << Ipv4Address::ConvertFrom (itrAddress));
 
@@ -857,10 +851,7 @@ void LispEtrItrApplication::SendMapRequest (Ptr<MapRequestMsg> mapReqMsg)
   mapReqMsg->Serialize (bufMapReq);
   Ptr<Packet> packetMapReqMsg;
   packetMapReqMsg = Create<Packet> (bufMapReq, 64);
-  MapResolver::ConnectToPeerAddress (
-    m_mapResolverRlocs.front ()->GetRlocAddress (),
-    LispOverIp::LISP_SIG_PORT, m_socket);
-  Send (packetMapReqMsg);
+  this->SendTo (m_mapResolverRlocs.front ()->GetRlocAddress (), LispOverIp::LISP_SIG_PORT, packetMapReqMsg);
 }
 
 void LispEtrItrApplication::HandleMapSockRead (Ptr<Socket> lispMappingSocket)
@@ -1235,7 +1226,6 @@ LispEtrItrApplication::GenerateMapRequest (Ptr<EndpointId> eid)
 {
   NS_LOG_FUNCTION (this << eid);
   Ptr<UniformRandomVariable> uv = CreateObject<UniformRandomVariable> ();
-  SeedManager::SetSeed (++m_seed % ULONG_MAX);
   // Build map request message, application layer meesage
   Ptr<MapRequestMsg> mapReqMsg = Create<MapRequestMsg> ();
   NS_LOG_DEBUG ("Create an empty map request message for further operations");
@@ -1273,6 +1263,21 @@ LispEtrItrApplication::GenerateMapRequest (Ptr<EndpointId> eid)
   mapReqMsg->SetMapRequestRecord (
     Create<MapRequestRecord> (eidAddress, maskLength));
   return mapReqMsg;
+}
+
+void LispEtrItrApplication::SendTo (Address address, uint16_t port, Ptr<Packet> packet)
+{
+  if (Ipv4Address::IsMatchingType (address) == true)
+    {
+      m_socket->Bind ();
+      m_socket->Connect (InetSocketAddress (Ipv4Address::ConvertFrom (address), port));
+    }
+  else if (Ipv6Address::IsMatchingType (address) == true)
+    {
+      m_socket->Bind6 ();
+      m_socket->Connect (Inet6SocketAddress (Ipv6Address::ConvertFrom (address), port));
+    }
+  Send (packet);
 }
 
 void LispEtrItrApplication::Send (Ptr<Packet> packet)

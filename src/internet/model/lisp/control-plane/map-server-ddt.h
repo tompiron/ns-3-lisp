@@ -64,6 +64,7 @@ private:
 
   Ipv4Address SelectDstRlocAddress (Ptr<LispControlMsg> msg);
 
+  void SendTo (Address address, uint16_t port, Ptr<Packet> packet);
   virtual void Send (Ptr<Packet> p);
 
   // Read responses on m_socket
