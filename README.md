@@ -3,6 +3,9 @@
 This repository contains a copy of the ns-3.27 source code, more information can be found in the [NS3_README file](NS3_README).
 This is a fork of E. Marechal's work that can be found [here](https://github.com/Emeline-1/ns-3_LISP_NAT).
 
+We added capabilities to the simulator in order to run simulations with the Publish/Subscribe extension of LISP.
+A link toward the thesis linked to this work will be available soon.
+
 ## Installation steps (Linux)
 
 In order to install the project, first, clone the repository.
@@ -29,11 +32,13 @@ $ ./waf
 ```
 ## Running the scripts
 
-There is one script in our code: simplelisp.
-It is a simple example of LISP.
+There are three scripts in our code: final, simplePubSub and simplelisp.
+The first one is the one we used in our work. The second is a simple example of Publish/Subcribe. And the last is a simple example of LISP.
 
-To run the script simply run the following:
+To run a script simply run one of the following:
 ```
-$ ./waf --run simplelisp
+$ ./waf --run [script_name]
+$ ./waf --run final --command-template "%s [# runs] [seed] [# senders] [# receivers]"
 ```
-It simply outputs pcap files in the root directory of the repo.
+For the first script, a directory named ´output´ in the root of the repo need to be created and the results will be stored there.
+The two other scripts simply output pcap files in the root directory of the repo.
