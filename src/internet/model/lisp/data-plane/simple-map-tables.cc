@@ -51,8 +51,15 @@ NS_OBJECT_ENSURE_REGISTERED (SimpleMapTables);
 TypeId SimpleMapTables::GetTypeId ()
 {
   static TypeId tid =
-    TypeId ("ns3::SimpleMapTables").SetParent<MapTables>().SetGroupName (
-      "Lisp").AddConstructor<SimpleMapTables>();
+    TypeId ("ns3::SimpleMapTables")
+    .SetParent<MapTables>()
+    .SetGroupName ("Lisp")
+    .AddConstructor<SimpleMapTables>()
+    .AddAttribute ("DefaultTTL",
+                   "The default time to live of map entries in seconds.",
+                   UintegerValue (180),
+                   MakeUintegerAccessor (&SimpleMapTables::m_defaultTTL),
+                   MakeUintegerChecker<uint32_t>());
   return tid;
 }
 
@@ -235,6 +242,12 @@ void SimpleMapTables::SetEntry (const Address &eidAddress, const Ipv4Mask &mask,
 
   else if (location == IN_CACHE)
     {
+      if (!this->m_reduceCacheTTLScheduled)
+        {
+          Simulator::Schedule (Seconds (1), &SimpleMapTables::ReduceCacheTTL, this);
+          this->m_reduceCacheTTLScheduled = true;
+        }
+      mapEntry->SetTTL (m_defaultTTL);
       m_mutexCache.Lock ();
       std::map<Ptr<EndpointId>, Ptr<MapEntry>, CompareEndpointId>::iterator it =
         m_mappingCache.find (eid);
@@ -693,6 +706,44 @@ bool SimpleMapTables::IsMapForReceivedPacket (Ptr<const Packet> p,
     }
 
   return true;
+}
+
+void
+SimpleMapTables::ReduceCacheTTL ()
+{
+  m_mutexCache.Lock ();
+
+  for (auto iter = m_mappingCache.begin (); iter != m_mappingCache.end (); iter++)
+    {
+      Ptr<MapEntry> entry = iter->second;
+      entry->ReduceTTL ();
+    }
+
+  auto iter = m_mappingCache.begin ();
+  while (iter != m_mappingCache.end ())
+    {
+      for (iter = m_mappingCache.begin (); iter != m_mappingCache.end (); iter++)
+        {
+          Ptr<MapEntry> entry = iter->second;
+          if (entry->GetTTL () == 0)
+            {
+              NS_LOG_INFO ("Removed entry from cache.");
+              m_mappingCache.erase (iter);
+              break;
+            }
+        }
+    }
+
+  if (this->m_mappingCache.size () == 0)
+    {
+      this->m_reduceCacheTTLScheduled = false;
+    }
+  else
+    {
+      Simulator::Schedule (Seconds (1), &SimpleMapTables::ReduceCacheTTL, this);
+      this->m_reduceCacheTTLScheduled = true;
+    }
+  m_mutexCache.Unlock ();
 }
 
 //////////////////

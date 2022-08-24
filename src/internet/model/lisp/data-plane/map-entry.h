@@ -54,6 +54,10 @@ public:
 
   bool IsNatedEntry (void) const;
 
+  uint32_t GetTTL ();
+  uint32_t ReduceTTL ();
+  void SetTTL (uint32_t ttl);
+
 protected:
   // TODO add a possible lock to the entry
   Ptr<EndpointId> m_eidPrefix;
@@ -77,6 +81,7 @@ private:
   bool m_isNegative;
   bool m_useVersioning;
   bool m_useLocatorStatusBits;
+  uint32_t m_ttl;
 
   uint16_t m_mappingVersionNumber; // Version number of the mapping
   uint32_t m_rlocsStatusBits;

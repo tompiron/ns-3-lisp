@@ -143,11 +143,16 @@ private:
                  uint8_t priority, uint8_t weight, MapEntryLocation location,
                  bool reachable);
 
+  void
+  ReduceCacheTTL ();
+
   SystemMutex m_mutexCache;
   SystemMutex m_mutexDatabase;
   std::map<Ptr<EndpointId>, Ptr<MapEntry>, CompareEndpointId> m_mappingCache;
   std::map<Ptr<EndpointId>, Ptr<MapEntry>, CompareEndpointId> m_mappingDatabase;
   LispEtrItrApplication* m_xTRApp;
+  bool m_reduceCacheTTLScheduled = false;
+  uint32_t m_defaultTTL;
 };
 
 class MapEntryImpl : public MapEntry

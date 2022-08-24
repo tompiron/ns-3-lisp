@@ -25,6 +25,7 @@ MapEntry::MapEntry ()
   m_isNegative = 0;
   m_isExpired = 0;
   m_port = 0;
+  m_ttl = 0;
 }
 
 MapEntry::~MapEntry ()
@@ -141,6 +142,25 @@ bool
 MapEntry::IsNatedEntry (void) const
 {
   return m_port != 0;
+}
+
+uint32_t MapEntry::GetTTL ()
+{
+  return m_ttl;
+}
+
+uint32_t MapEntry::ReduceTTL ()
+{
+  if (m_ttl != 0)
+    {
+      return --m_ttl;
+    }
+  return 0;
+}
+
+void MapEntry::SetTTL (uint32_t ttl)
+{
+  m_ttl = ttl;
 }
 
 } /* namespace ns3 */
