@@ -679,8 +679,16 @@ void LispHelper::BuildMapTables2 (std::string localMapTablesConfigFilePath)
       NS_LOG_ERROR ("line is" << str);
       NS_LOG_ERROR ("Bad File Format --- File start with <locators> and ends with  </locators>");
       exit (-1);
-    }
-}
+      }
+  }
+
+  void LispHelper::SetMapTablesForEtr (Address etrRloc, Ptr<MapTables> ipv4MapTables, Ptr<MapTables> ipv6MapTables)
+  {
+        m_mapTablesIpv4.insert (std::pair<Address, Ptr<MapTables> > (etrRloc, ipv4MapTables));
+        m_mapTablesIpv6.insert (std::pair<Address, Ptr<MapTables> > (etrRloc, ipv6MapTables));
+        m_lispStatisticsMapForV4.insert (std::pair<Address, Ptr<LispStatistics> > (etrRloc, Create<LispStatistics> ()));
+        m_lispStatisticsMapForV6.insert (std::pair<Address, Ptr<LispStatistics> > (etrRloc, Create<LispStatistics> ()));
+  }
 
 std::vector<std::string> LispHelper::Split (std::string str)
 {
@@ -730,8 +738,16 @@ void LispHelper::BuildRlocsSet (std::string rlocsListFilePath)
     }
 }
 
-void
-LispHelper::SetPetrAddress (Address petrAddress)
+void LispHelper::AddRlocToSet (Address rloc)
+{
+    if (Ipv4Address::IsMatchingType(rloc) || Ipv6Address::IsMatchingType(rloc))
+    {
+        m_rlocsList.insert(rloc);
+    }
+}
+
+void 
+LispHelper::SetPetrAddress(Address petrAddress)
 {
   m_petrAddress = petrAddress;
 }

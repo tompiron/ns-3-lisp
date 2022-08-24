@@ -32,7 +32,9 @@ public:
   // NB. Must be called only once the address of routers are assigned
   void BuildMapTables (std::string localMapTablesConfigFilePath);
   void BuildMapTables2 (std::string localMapTablesConfigFilePath);
+  void SetMapTablesForEtr (Address etrRloc, Ptr<MapTables> ipv4MapTables, Ptr<MapTables> ipv6MapTables);
   void BuildRlocsSet (std::string rlocsListFilePath);
+  void AddRlocToSet (Address rloc);
   void SetPetrAddress (Address petrAddress);
   void SetPitrs (NodeContainer c);
   void SetPetrs (NodeContainer c);
