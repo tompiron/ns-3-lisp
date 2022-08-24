@@ -30,10 +30,12 @@
 #include "ns3/socket-factory.h"
 #include "ns3/packet.h"
 #include "ns3/uinteger.h"
+#include "ns3/boolean.h"
 #include "ns3/random-variable-stream.h"
 #include "ns3/rng-seed-manager.h"
 #include "ns3/map-register-msg.h"
 #include "ns3/map-reply-msg.h"
+#include "ns3/map-notify-msg.h"
 #include "ns3/info-request-msg.h"
 #include "map-resolver.h"
 #include "ns3/lisp-mapping-socket.h"
@@ -75,43 +77,36 @@ TypeId LispEtrItrApplication::GetTypeId (void)
                    "The time to wait between packets", TimeValue (Seconds (3.0)),
                    MakeTimeAccessor (&LispEtrItrApplication::m_interval),
                    MakeTimeChecker ())
-    .AddAttribute (
-    "RttVariable",
-    "The random variable representing the distribution of RTTs between xTRs)",
-    StringValue ("ns3::ConstantRandomVariable[Constant=0]"),
-    MakePointerAccessor (&LispEtrItrApplication::m_rttVariable),
-    MakePointerChecker<RandomVariableStream> ())
+    .AddAttribute ("XtrToMapServerDelayVariable",
+                   "The random variable representing the distribution of transmission delay between xTRs and map servers.",
+                   StringValue ("ns3::ConstantRandomVariable[Constant=0.1]"),
+                   MakePointerAccessor (&LispEtrItrApplication::m_xtrToMapServerDelayVariable),
+                   MakePointerChecker<RandomVariableStream> ())
+    .AddAttribute ("XtrToXtrDelayVariable",
+                   "The random variable representing the distribution of transmission delay between xTRs.",
+                   StringValue ("ns3::ConstantRandomVariable[Constant=0.1]"),
+                   MakePointerAccessor (&LispEtrItrApplication::m_xtrToXtrDelayVariable),
+                   MakePointerChecker<RandomVariableStream> ())
+    .AddAttribute ("EnableProxyMode",
+                   "If the ETR should register it's mapping in proxy mode. Otherwise, forward mode is used.",
+                   BooleanValue (false),
+                   MakeBooleanAccessor (&LispEtrItrApplication::m_registerProxyMode),
+                   MakeBooleanChecker ())
+    .AddAttribute ("EnableSubscribe",
+                   "If the ITR should request subscription when sending MapRequest.",
+                   BooleanValue (false),
+                   MakeBooleanAccessor (&LispEtrItrApplication::m_enableSubscribe),
+                   MakeBooleanChecker ())
     .AddTraceSource ("MapRegisterTx", "A MapRegister is sent by the LISP device",
                      MakeTraceSourceAccessor (&LispEtrItrApplication::m_mapRegisterTxTrace),
                      "ns3::Packet::TracedCallback")
     .AddTraceSource ("MapNotifyRx", "A MapNotify is received by the LISP device",
                      MakeTraceSourceAccessor (&LispEtrItrApplication::m_mapNotifyRxTrace),
+                     "ns3::Packet::TracedCallback")
+    .AddTraceSource ("MappingUpdateTrace", "A MapReply is sent down to the data plane.",
+                     MakeTraceSourceAccessor (&LispEtrItrApplication::m_mappingUpdateTrace),
                      "ns3::Packet::TracedCallback");
   return tid;
-}
-
-Ptr<RandomVariableStream>
-LispEtrItrApplication::GetRttModel (void)
-{
-  Ptr<EmpiricalRandomVariable> mds = CreateObject<EmpiricalRandomVariable> ();
-  mds->CDF ( 0.0,  0.0);
-  mds->CDF ( 0.025,  0.1);
-  mds->CDF ( 0.048,  0.2);
-  mds->CDF ( 0.060,  0.27);
-  mds->CDF ( 0.080,  0.29);
-  mds->CDF ( 0.105,  0.4);
-  mds->CDF ( 0.132,  0.52);
-  mds->CDF ( 0.160,  0.58);
-  mds->CDF ( 0.190,  0.65);
-  mds->CDF ( 0.265,  0.7);
-  mds->CDF ( 0.300,  0.8);
-  mds->CDF ( 0.340,  0.9);
-  mds->CDF ( 0.400,  0.95);
-  mds->CDF ( 0.500,  0.99);
-  mds->CDF ( 0.650,  0.9999);
-  mds->CDF ( 1.0,  1.0);
-
-  return mds;
 }
 
 LispEtrItrApplication::LispEtrItrApplication ()
@@ -382,7 +377,7 @@ void LispEtrItrApplication::SendMapRegisters (bool rtr)
       /* --- Tracing --- */
       m_mapRegisterTxTrace (p);
 
-      Simulator::Schedule (Seconds (m_rttVariable->GetValue () / 2), &LispEtrItrApplication::SendTo,
+      Simulator::Schedule (Seconds (m_xtrToMapServerDelayVariable->GetValue ()), &LispEtrItrApplication::SendTo,
                            this, m_mapServerAddress.front (), LispOverIp::LISP_SIG_PORT, p);
       NS_LOG_DEBUG (
         "Map-Register message sent to " << Ipv4Address::ConvertFrom (m_mapServerAddress.front ()));
@@ -399,12 +394,9 @@ void LispEtrItrApplication::SendMapRegisters (bool rtr)
 void LispEtrItrApplication::SendToLisp (Ptr<Packet> packet)
 {
   NS_LOG_FUNCTION (this);
+  m_mappingUpdateTrace (packet);
   m_lispMappingSocket->Send (packet);
 
-  /*if (m_sent < m_count)
-   {
-   ScheduleTransmit (m_interval);
-   }*/
   NS_LOG_DEBUG (
     "LispEtrItrApplication sent a packet to lispOverIp by lispMappingSocket! \nThe packet is: " << *packet);
 }
@@ -474,7 +466,7 @@ void LispEtrItrApplication::HandleReadControlMsg (Ptr<Socket> socket)
                       mapReply->Serialize (newBuf);
                       reactedPacket = Create<Packet> (newBuf, 256);
 
-                      Simulator::Schedule (Seconds (m_rttVariable->GetValue () / 2), &LispEtrItrApplication::SendTo,
+                      Simulator::Schedule (Seconds (m_xtrToXtrDelayVariable->GetValue ()), &LispEtrItrApplication::SendTo,
                                            this, destination, m_peerPort, reactedPacket);
                       //TODO: we should add check for the return value of Send method.
                       // Since it is possible that map reply has not been sent due to cache miss...
@@ -564,7 +556,7 @@ void LispEtrItrApplication::HandleReadControlMsg (Ptr<Socket> socket)
                   reactedPacket = Create<Packet> (newBuf, 256);
 
                   /* --- Artificial delay for SMR procedure --- */
-                  Simulator::Schedule (Seconds (m_rttVariable->GetValue () / 2), &LispEtrItrApplication::SendTo,
+                  Simulator::Schedule (Seconds (m_xtrToXtrDelayVariable->GetValue ()), &LispEtrItrApplication::SendTo,
                                        this, destination, m_peerPort, reactedPacket);
                   NS_LOG_DEBUG (
                     "A Map Reply Message Sent to " << Ipv4Address::ConvertFrom (destination) << " in response to an invoked SMR");
@@ -642,46 +634,91 @@ void LispEtrItrApplication::HandleReadControlMsg (Ptr<Socket> socket)
          * Maybe it's better to have a flag for mapTablesChanged. Only it is true,
          * SMR procedure will be triggered. In addition, we also need a mechanism to
          * quickly check whether database is changed (Map versioning???)
+         * 3) With Publish-Subscribe, check if the EID is local, if yes, this
+         * is just the acknowledgement of the Map registration procedure proceed with
+         * step 1 or 2. If the EID is not local, update the map-cache.
          */
           NS_LOG_DEBUG ("LISP device received MapNotify");
           /* --- Tracing --- */
           m_mapNotifyRxTrace (packet);
 
-          /* --- Notifies DataPlane that LISP device is registered (allowed to send data packets)--- */
-          Ptr<MappingSocketMsg> mapSockMsg = Create<MappingSocketMsg>();
-          mapSockMsg->SetEndPoint (
-            Create<EndpointId> (Ipv4Address ("0.0.0.0"), Ipv4Mask ("/32")));                  //Don't care about this endpoint (won't be used)
-          MappingSocketMsgHeader mapSockHeader;
-          mapSockHeader.SetMapType (LispMappingSocket::MAPM_ISREGISTERED);
-          mapSockHeader.SetMapRlocCount (0);
-          mapSockHeader.SetMapVersioning (0);
+          Ptr<MapNotifyMsg> notifyMsg = MapNotifyMsg::Deserialize (buf);
+          Ptr<MapReplyRecord> record = notifyMsg->GetRecord ();
 
-
-          mapSockHeader.SetMapAddresses (static_cast<uint16_t> (LispMappingSocket::MAPA_EID));
-          //MAPA_EID used to say that LISP device is registered.
-          //MAPA_EIDMASK is used to say that LISP device is NOT registered.
-
-          uint8_t buf[256];
-          mapSockMsg->Serialize (buf);
-          Ptr<Packet> packet = Create<Packet> (buf, 256);
-          packet->AddHeader (mapSockHeader);
-          SendToLisp (packet);
-
-
-          /* The SMR procedure is now implemented on the RemoteItr Cache, instead of on the LISP Cache */
-          if (!m_remoteItrCache.empty ())
+          // Check if the EID is local.
+          Ptr<MapEntry> mapEntry;
+          if (Ipv4Address::IsMatchingType (record->GetEidPrefix ()))
             {
-              NS_LOG_DEBUG (
-                "Receive a map notify message. xTR's Cache is not empty. Trigger SMR procedure for every entry in Cache...");
-              /* --- Artificial delay for the SMR procedure--- */
-              Simulator::Schedule (Seconds (m_rttVariable->GetValue () / 2), &LispEtrItrApplication::SendSmrMsg, this);
-              /**
-                 * After sendng SMR, don't forget to schedule a resend event for SMR
-                 * Since for double encapsulation case, surely the first trial will be failed.
-                 */
-              m_resendSmrEvent = Simulator::Schedule (Seconds (2.0 + m_rttVariable->GetValue () / 2),
-                                                      &LispEtrItrApplication::SendSmrMsg, this);
-              m_recvIvkSmr = false;
+              mapEntry = m_mapTablesV4->DatabaseLookup (record->GetEidPrefix ());
+            }
+          else if (Ipv6Address::IsMatchingType (record->GetEidPrefix ()))
+            {
+              mapEntry = m_mapTablesV4->DatabaseLookup (record->GetEidPrefix ());
+            }
+          else
+            {
+              NS_LOG_ERROR ("EID prefix neither IPV4 or IPV6.");
+            }
+
+          if (mapEntry != 0)
+            {
+              /* --- Notifies DataPlane that LISP device is registered (allowed to send data packets)--- */
+              Ptr<MappingSocketMsg> mapSockMsg = Create<MappingSocketMsg>();
+              mapSockMsg->SetEndPoint (
+                Create<EndpointId> (Ipv4Address ("0.0.0.0"), Ipv4Mask ("/32")));                //Don't care about this endpoint (won't be used)
+              MappingSocketMsgHeader mapSockHeader;
+              mapSockHeader.SetMapType (LispMappingSocket::MAPM_ISREGISTERED);
+              mapSockHeader.SetMapRlocCount (0);
+              mapSockHeader.SetMapVersioning (0);
+
+
+              mapSockHeader.SetMapAddresses (static_cast<uint16_t> (LispMappingSocket::MAPA_EID));
+              //MAPA_EID used to say that LISP device is registered.
+              //MAPA_EIDMASK is used to say that LISP device is NOT registered.
+
+              uint8_t buf[256];
+              mapSockMsg->Serialize (buf);
+              Ptr<Packet> packet = Create<Packet> (buf, 256);
+              packet->AddHeader (mapSockHeader);
+              SendToLisp (packet);
+
+
+              /* The SMR procedure is now implemented on the RemoteItr Cache, instead of on the LISP Cache */
+              if (!m_remoteItrCache.empty ())
+                {
+                  NS_LOG_DEBUG (
+                    "Receive a map notify message. xTR's Cache is not empty. Trigger SMR procedure for every entry in Cache...");
+                  /* --- Artificial delay for the SMR procedure--- */
+                  Simulator::Schedule (Seconds (m_xtrToXtrDelayVariable->GetValue ()), &LispEtrItrApplication::SendSmrMsg, this);
+                  /**
+                     * After sendng SMR, don't forget to schedule a resend event for SMR
+                     * Since for double encapsulation case, surely the first trial will be failed.
+                     */
+                  m_resendSmrEvent = Simulator::Schedule (Seconds (2.0),
+                                                          &LispEtrItrApplication::SendSmrMsg, this);
+                  m_recvIvkSmr = false;
+                }
+            }
+          else
+            {
+              NS_LOG_LOGIC ("MapNotify EID not local.");
+              Ptr<MapReplyMsg> replyToDataPlane = Create<MapReplyMsg>();
+              replyToDataPlane->SetRecordCount (notifyMsg->GetRecordCount ());
+              replyToDataPlane->SetRecord (notifyMsg->GetRecord ());
+
+              // prepare mapping socket message body+header
+              Ptr<MappingSocketMsg> mapSockMsg = GenerateMapSocketAddMsgBody (replyToDataPlane);
+              MappingSocketMsgHeader mapSockHeader = GenerateMapSocketAddMsgHeader (replyToDataPlane);
+              NS_LOG_DEBUG ("Mapping socket message created");
+              NS_ASSERT_MSG (mapSockMsg != 0,
+                             "Cannot create map socket message body !!! Please check why.");
+              uint8_t buf[256];
+              mapSockMsg->Serialize (buf);
+              Ptr<Packet> packet = Create<Packet> (buf, 256);
+              packet->AddHeader (mapSockHeader);
+              SendToLisp (packet);
+
+              // TODO Send map-notify-ack.
             }
         }
       else
@@ -700,64 +737,7 @@ void LispEtrItrApplication::HandleReadControlMsg (Ptr<Socket> socket)
  */
 void LispEtrItrApplication::SendSmrMsg ()
 {
-  // First extract all map entries in m_mapTablesV4 and m_mapTablesV6
   NS_LOG_FUNCTION (this);
-
-  /*--------------------------------------
-                                Send SMR to whole cache
-    --------------------------------------*/
-  /*
-  std::list<Ptr<MapEntry> > mapEntries;
-  m_mapTablesV4->GetMapEntryList(MapTables::IN_CACHE, mapEntries);
-  m_mapTablesV6->GetMapEntryList(MapTables::IN_CACHE, mapEntries);
-
-  Address dstRlocAddr;
-  for (std::list<Ptr<MapEntry> >::const_iterator it = mapEntries.begin();
-                it != mapEntries.end(); ++it)
-  {
-        //1) Send map request directly to the remote contacted xTR,
-        //since the RLOC address (maybe more than one, we choose the first valid one) is
-        //alreay in cache.
-        //2) send to MR/MS so that the latter forward map request message costs much time.
-        //TODO: RFC6830 requires to send a SMR to each Locator... see 6.6.2
-
-        Ipv4Address prefix = Ipv4Address::ConvertFrom ((*it)->GetEidPrefix ()->GetEidAddress ());
-        if ((prefix.IsEqual(Ipv4Address("0.0.0.0")))
-                                && ((*it)->GetEidPrefix ()->GetIpv4Mask ().IsEqual (Ipv4Mask ("/0")))){
-                NS_LOG_DEBUG ("No SMR sent to RTR RLOC ");
-                continue;
-        }
-
-        // If the entry is negative, don't send SMR obviously
-        if ((*it)->IsNegative ()){
-                NS_LOG_DEBUG ("Negative MapEntry -> Don't send SMR");
-                continue;
-        }
-
-        dstRlocAddr =
-                        (*it)->GetLocators()->SelectFirsValidRloc()->GetRlocAddress();
-        Ptr<MapRequestMsg> mapReqMsg =
-                        LispEtrItrApplication::GenerateMapRequest(GetLispMnEid ());
-        //IMPORTANT: set SMR bit!!!
-        mapReqMsg->SetS(1);
-        uint8_t bufMapReq[64];
-        mapReqMsg->Serialize(bufMapReq);
-        Ptr<Packet> packetSmrMsg;
-        packetSmrMsg = Create<Packet>(bufMapReq, 64);
-        // TODO: Should add SMR rate-limiting method...just like what we do for map request
-
-        //In fact, the name of MapResolver::ConnectToPeerAddress is somewhat misleading. It has nothing to do
-        //with MapResolver. Just because MapRsolver has encapsulated socket bind and connect manipulation
-        //into an independent function. We call it to avoid reinventing the wheel.
-        //Thus, it is necessary to do socket bind and connect again for map-register and map-reply manipulation.
-
-        MapResolver::ConnectToPeerAddress(dstRlocAddr,
-                        LispOverIp::LISP_SIG_PORT, m_socket);
-        // Before sending map message, first should make sure the m_socket connect to the correct @IP and port number!
-        Send(packetSmrMsg);
-        NS_LOG_DEBUG("A SMR message has been sent to xTR "<<dstRlocAddr);
-  }
-  */
 
   /*--------------------------------------
                 Send SMR to whole RemoteItr cache
@@ -774,37 +754,51 @@ void LispEtrItrApplication::SendSmrMsg ()
       uint8_t bufMapReq[64];
       mapReqMsg->Serialize (bufMapReq);
       Ptr<Packet> packetSmrMsg = Create<Packet> (bufMapReq, 64);
-      Simulator::Schedule (Seconds (m_rttVariable->GetValue () / 2), &LispEtrItrApplication::SendTo,
+      Simulator::Schedule (Seconds (m_xtrToXtrDelayVariable->GetValue ()), &LispEtrItrApplication::SendTo,
                            this, dstRlocAddr, m_peerPort, packetSmrMsg);
       NS_LOG_DEBUG ("A SMR message has been sent to PITR " << dstRlocAddr);
     }
 
 }
 
+void LispEtrItrApplication::SendSmrMsgForEID (Ptr<EndpointId> eid)
+{
+  // First extract all map entries in m_mapTablesV4 and m_mapTablesV6
+  NS_LOG_FUNCTION (this);
+
+  std::list<Ptr<MapEntry> > mapEntries;
+  m_mapTablesV4->GetMapEntryList (MapTables::IN_CACHE, mapEntries);
+  m_mapTablesV6->GetMapEntryList (MapTables::IN_CACHE, mapEntries);
+
+  Address dstRlocAddr;
+  for (std::list<Ptr<MapEntry> >::const_iterator it = mapEntries.begin ();
+       it != mapEntries.end (); ++it)
+    {
+      if ((*it)->IsNegative ())
+        {
+          NS_LOG_DEBUG ("Negative MapEntry -> Don't send SMR");
+          continue;
+        }
+
+      dstRlocAddr = (*it)->GetLocators ()->SelectFirsValidRloc ()->GetRlocAddress ();
+      Ptr<MapRequestMsg> mapReqMsg =
+        LispEtrItrApplication::GenerateMapRequest (eid);
+      //IMPORTANT: set SMR bit!!!
+      mapReqMsg->SetS (1);
+      uint8_t bufMapReq[64];
+      mapReqMsg->Serialize (bufMapReq);
+      Ptr<Packet> packetSmrMsg;
+      packetSmrMsg = Create<Packet> (bufMapReq, 64);
+
+      Simulator::Schedule (Seconds (m_xtrToXtrDelayVariable->GetValue ()), &LispEtrItrApplication::SendTo,
+                           this, dstRlocAddr, LispOverIp::LISP_SIG_PORT, packetSmrMsg);
+      NS_LOG_DEBUG ("A SMR message has been sent to xTR " << dstRlocAddr);
+    }
+}
+
 void LispEtrItrApplication::SendInvokedSmrMsg (Ptr<MapRequestMsg> smr)
 {
   Ptr<Packet> reactedPacket;
-  /**
-   * Determine the dst@IP of this sending: the RLOC of xTR sending SMR
-   * This @IP is in the received SMR
-   */
-  if (smr->GetItrRlocAddrIp () != static_cast<Address> (Ipv4Address ()))
-    {
-      MapResolver::ConnectToPeerAddress (smr->GetItrRlocAddrIp (), m_peerPort,
-                                         m_socket);
-      NS_LOG_DEBUG ("Now the socket has been binded to:" << Ipv4Address::ConvertFrom (smr->GetItrRlocAddrIp ()));
-    }
-
-  else if ((smr->GetItrRlocAddrIpv6 () != static_cast<Address> (Ipv6Address ())))
-    {
-      MapResolver::ConnectToPeerAddress (smr->GetItrRlocAddrIpv6 (), m_peerPort,
-                                         m_socket);
-    }
-  else
-    {
-      NS_LOG_ERROR (
-        "NO valid ITR address (neither ipv4 nor ipv6) to send back Map Message!!!");
-    }
 
   uint8_t newBuf[256];
   //TODO: verify if we can directly copy map request message as SMR-invoked map request
@@ -1068,7 +1062,7 @@ Ptr<MapRegisterMsg> LispEtrItrApplication::GenerateMapRegister (
    * of Map Register message.
    */
   msg->SetM (1);
-  msg->SetP (0);
+  msg->SetP (m_registerProxyMode);
   msg->SetNonce (0);      // Nonce is 0 for map register
   msg->setKeyId (static_cast<uint16_t> (0xface));
   msg->SetAuthDataLen (04);      // Set
@@ -1263,6 +1257,14 @@ LispEtrItrApplication::GenerateMapRequest (Ptr<EndpointId> eid)
   mapReqMsg->SetSourceEidAfi (LispControlMsg::IP);
   mapReqMsg->SetMapRequestRecord (
     Create<MapRequestRecord> (eidAddress, maskLength));
+  if (m_enableSubscribe)
+    {
+      mapReqMsg->SetI (1);
+      mapReqMsg->SetSiteId (this->GetNode ()->GetId ());
+      mapReqMsg->SetXtrId (0);
+      Ptr<MapRequestRecord> record = mapReqMsg->GetMapRequestRecord ();
+      record->SetN (1);
+    }
   return mapReqMsg;
 }
 

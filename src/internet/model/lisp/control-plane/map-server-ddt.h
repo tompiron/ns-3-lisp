@@ -21,6 +21,7 @@
 #define SRC_INTERNET_MODEL_LISP_CONTROL_PLANE_MAP_SERVER_DDT_H_
 
 #include "map-server.h"
+#include "subscribe-list.h"
 #include "ns3/map-tables.h"
 #include "ns3/lisp-control-msg.h"
 #include "ns3/lisp-over-ip.h"
@@ -42,11 +43,6 @@ public:
   ~MapServerDdt ();
 
   static TypeId GetTypeId (void);
-
-  /* This function returns a RandomVariableStream that models
-   * the response time of the Mapping Distribution System
-   */
-  static Ptr<RandomVariableStream> GetMdsModel (void);
 
   Ptr<MapTables> GetMapTablesV4 ();
 
@@ -80,7 +76,7 @@ private:
 
   Ptr<MapTables> m_mapTablesv4;
   Ptr<MapTables> m_mapTablesv6;
-
+  Ptr<SubscribeList> m_subscribeList;
 };
 
 

@@ -76,11 +76,17 @@ TypeId MapServer::GetTypeId (void)
     TimeValue (Seconds (60.0)),
     MakeTimeAccessor (&MapServer::m_interval), MakeTimeChecker ())
     .AddAttribute (
-    "SearchTimeVariable",
-    "The random variable which generates random delays for EID-RLOC mapping search time (before forwarding to ETR)",
+    "MappingSystemRttVariable",
+    "The random variable which generates random delays for EID-RLOC mapping search time.",
     StringValue ("ns3::ConstantRandomVariable[Constant=0.4]"),
-    //PointerValue(rvs),
-    MakePointerAccessor (&MapServer::m_searchTimeVariable),
+    MakePointerAccessor (&MapServer::m_mappingSystemRttVariable),
+    MakePointerChecker<RandomVariableStream> ()
+    )
+    .AddAttribute (
+    "MapServerToXtrDelayVariable",
+    "The random variable which generates random delays for sending messages to xTR.",
+    StringValue ("ns3::ConstantRandomVariable[Constant=0.1]"),
+    MakePointerAccessor (&MapServer::m_mapServerToXtrDelayVariable),
     MakePointerChecker<RandomVariableStream> ()
     );
 

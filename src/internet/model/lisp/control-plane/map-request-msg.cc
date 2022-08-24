@@ -26,8 +26,8 @@ NS_LOG_COMPONENT_DEFINE ("MapRequestMsg");
 const LispControlMsg::LispControlMsgType msgType = LispControlMsg::MAP_REQUEST;
 
 MapRequestMsg::MapRequestMsg () :
-  m_A (0), m_M (0), m_P (0), m_S (0), m_p (0), m_s (0), m_reserved (0), m_irc (0), m_recordCount (
-    1), m_nonce (0)
+  m_A (0), m_M (0), m_P (0), m_S (0), m_p (0), m_s (0), m_reserved (0), m_I (0), m_irc (0), m_recordCount (
+    1), m_nonce (0), m_xtrId (0), m_siteId (0)
 {
   m_sourceEidAfi = LispControlMsg::IP;
   m_sourceEidAddress = static_cast<Address> (Ipv4Address ());
@@ -94,6 +94,15 @@ void MapRequestMsg::SetS2 (uint8_t s)
 uint8_t MapRequestMsg::GetS2 (void)
 {
   return m_s;
+}
+
+void MapRequestMsg::SetI (uint8_t i)
+{
+  m_I = i;
+}
+uint8_t MapRequestMsg::GetI (void) const
+{
+  return m_I;
 }
 
 void MapRequestMsg::SetIrc (uint8_t irc)
@@ -170,6 +179,24 @@ Ptr<MapRequestRecord> MapRequestMsg::GetMapRequestRecord (void)
   return m_mapReqRec;
 }
 
+void MapRequestMsg::SetXtrId (uint128_t xtrId)
+{
+  m_xtrId = xtrId;
+}
+uint128_t MapRequestMsg::GetXtrId (void) const
+{
+  return m_xtrId;
+}
+
+void MapRequestMsg::SetSiteId (uint64_t siteId)
+{
+  m_siteId = siteId;
+}
+uint64_t MapRequestMsg::GetSiteId (void) const
+{
+  return m_siteId;
+}
+
 void MapRequestMsg::Serialize (uint8_t *buf) const
 {
   uint8_t type = static_cast<uint8_t> (LispControlMsg::MAP_REQUEST);
@@ -177,11 +204,11 @@ void MapRequestMsg::Serialize (uint8_t *buf) const
 
   type_AMPS = type << 4 | (m_A << 3) | (m_M << 2) | (m_P << 1) | m_S;
   // Byte for flag p,s and 6 bits of reserved field
-  uint8_t ps_partialReseverd = 0 | (m_p << 7) | (m_s << 6);
+  uint8_t ps_reserved = 0 | (m_p << 7) | (m_s << 6) | (m_I << 4);
 
   buf[0] = type_AMPS;
-  buf[1] = ps_partialReseverd;
-  buf[2] = m_reserved | m_irc;
+  buf[1] = ps_reserved;
+  buf[2] = 0 | m_irc;
   buf[3] = m_recordCount;
 
   buf[4] = (m_nonce >> 56) & 0xffff;
@@ -234,69 +261,24 @@ void MapRequestMsg::Serialize (uint8_t *buf) const
 //	}
 
   m_mapReqRec->Serialize (buf + size);
-}
+  size += m_mapReqRec->GetSizeInBytes ();
 
-void MapRequestMsg::SerializeOld (uint8_t *buf) const
-{
-  uint8_t AMPSpsres = 0;
-
-  AMPSpsres = (m_A << 7) | (m_M << 6) | (m_P << 5) | (m_S << 4) | (m_p << 3)
-    | (m_s << 2) | (m_reserved);
-
-  buf[0] = static_cast<uint8_t> (LispControlMsg::MAP_REQUEST);
-  buf[1] = AMPSpsres;
-  buf[2] = m_irc;
-  buf[3] = m_recordCount;
-
-  buf[4] = (m_nonce >> 56) & 0xffff;
-  buf[5] = (m_nonce >> 48) & 0xffff;
-  buf[6] = (m_nonce >> 40) & 0xffff;
-  buf[7] = (m_nonce >> 32) & 0xffff;
-  buf[8] = (m_nonce >> 24) & 0xffff;
-  buf[9] = (m_nonce >> 16) & 0xffff;
-  buf[10] = (m_nonce >> 8) & 0xffff;
-  buf[11] = (m_nonce >> 0) & 0xffff;
-
-  buf[12] = static_cast<uint8_t> (m_sourceEidAfi);
-
-  uint8_t size = 13;
-  if (m_sourceEidAfi == LispControlMsg::IP)
+  if (this->GetI ())
     {
-      Ipv4Address::ConvertFrom (m_sourceEidAddress).Serialize (buf + size);
-      size += 4;
-    }
-  else if (m_sourceEidAfi == LispControlMsg::IPV6)
-    {
-      Ipv6Address::ConvertFrom (m_sourceEidAddress).Serialize (buf + size);
+      for (uint8_t i = 0; i < 16; i++)
+        {
+          uint8_t offset = 128 - 8 * (i + 1);
+          buf[size + i] = (m_xtrId >> offset) & 0xffff;
+        }
       size += 16;
-    }
 
-  if (!Ipv4Address ().IsEqual (Ipv4Address::ConvertFrom (m_itrRlocAddrIp)))
-    {
-      buf[size] = 0x00;
-      size += 1;
-      buf[size] = 1;
-      size++;
-      Ipv4Address::ConvertFrom (m_itrRlocAddrIp).Serialize (buf + size);
-      size += 4;
+      for (uint8_t i = 0; i < 8; i++)
+        {
+          uint8_t offset = 64 - 8 * (i + 1);
+          buf[size + i] = (m_siteId >> offset) & 0xffff;
+        }
+      size += 8;
     }
-  else
-    {
-      buf[size] = 0;
-      size++;
-    }
-
-//	if (!Ipv6Address::ConvertFrom(m_itrRlocAddrIpv6).IsEqual(Ipv6Address())) {
-//		buf[size] = 1;
-//		size++;
-//		Ipv6Address::ConvertFrom(m_itrRlocAddrIpv6).Serialize(buf + size);
-//		size += 16;
-//	} else {
-//		buf[size] = 0;
-//		size++;
-//	}
-
-  m_mapReqRec->Serialize (buf + size);
 }
 
 Ptr<MapRequestMsg> MapRequestMsg::Deserialize (uint8_t *buf)
@@ -310,10 +292,11 @@ Ptr<MapRequestMsg> MapRequestMsg::Deserialize (uint8_t *buf)
   msg->SetM ((type_AMPS >> 2) & 0x01);
   msg->SetP ((type_AMPS >> 1) & 0x01);
   msg->SetS (type_AMPS & 0x01);
-  uint8_t ps_partialReseverd = buf[1];
+  uint8_t psRI_reserved = buf[1];
 
-  msg->SetP2 (ps_partialReseverd >> 7);
-  msg->SetS2 (ps_partialReseverd >> 6);
+  msg->SetP2 ((psRI_reserved >> 7) & 0x01);
+  msg->SetS2 ((psRI_reserved >> 6) & 0x01);
+  msg->SetI ((psRI_reserved >> 4) & 0x01);
 
   msg->SetIrc (buf[2]);
   msg->SetRecordCount (buf[3]);
@@ -386,87 +369,31 @@ Ptr<MapRequestMsg> MapRequestMsg::Deserialize (uint8_t *buf)
 //	}
 
   msg->SetMapRequestRecord (MapRequestRecord::Deserialize (buf + size));
-  return msg;
-}
+  size += msg->m_mapReqRec->GetSizeInBytes ();
 
-Ptr<MapRequestMsg> MapRequestMsg::DeserializeOld (uint8_t *buf)
-{
-  Ptr<MapRequestMsg> msg = Create<MapRequestMsg>();
-
-  uint8_t AMPSpsres = buf[1];
-  msg->SetA (AMPSpsres >> 7);
-  msg->SetM (AMPSpsres >> 6);
-  msg->SetP (AMPSpsres >> 5);
-  msg->SetS (AMPSpsres >> 4);
-  msg->SetP2 (AMPSpsres >> 3);
-  msg->SetS2 (AMPSpsres >> 2);
-
-  msg->SetIrc (buf[2]);
-  msg->SetRecordCount (buf[3]);
-
-  uint64_t nonce = 0;
-  nonce |= buf[4];
-  nonce <<= 8;
-  nonce |= buf[5];
-  nonce <<= 8;
-  nonce |= buf[6];
-  nonce <<= 8;
-  nonce |= buf[7];
-  nonce <<= 8;
-  nonce |= buf[8];
-  nonce <<= 8;
-  nonce |= buf[9];
-  nonce <<= 8;
-  nonce |= buf[10];
-  nonce <<= 8;
-  nonce |= buf[11];
-
-  msg->SetNonce (nonce);
-
-  msg->SetSourceEidAfi (static_cast<LispControlMsg::AddressFamily> (buf[12]));
-
-  uint8_t size = 13;
-
-  if (msg->GetSourceEidAfi () == LispControlMsg::IP)
+  if (msg->GetI ())
     {
-      msg->SetSourceEidAddr (
-        static_cast<Address> (Ipv4Address::Deserialize (buf + size)));
-      size += 4;
-    }
-  else
-    {
-      msg->SetSourceEidAddr (
-        static_cast<Address> (Ipv6Address::Deserialize (buf + size)));
+      uint128_t xtrId = 0;
+      for (uint8_t i = 0; i < 15; i++)
+        {
+          xtrId |= buf[size + i];
+          xtrId <<= 8;
+        }
+      xtrId |= buf[size + 15];
+      msg->SetXtrId (xtrId);
       size += 16;
+
+      uint64_t siteId = 0;
+      for (uint8_t i = 0; i < 7; i++)
+        {
+          siteId |= buf[size + i];
+          siteId <<= 8;
+        }
+      siteId |= buf[size + 7];
+      msg->SetSiteId (siteId);
+      size += 8;
     }
 
-  if (buf[size] == 1)
-    {
-      size++;
-      msg->SetItrRlocAddrIp (
-        static_cast<Address> (Ipv4Address::Deserialize (buf + size)));
-      size += 4;
-    }
-  else
-    {
-      msg->SetItrRlocAddrIp (static_cast<Address> (Ipv4Address ()));
-      size++;
-    }
-
-  if (buf[size] == 1)
-    {
-      size++;
-      msg->SetItrRlocAddrIpv6 (
-        static_cast<Address> (Ipv6Address::Deserialize (buf + size)));
-      size += 16;
-    }
-  else
-    {
-      msg->SetItrRlocAddrIpv6 (static_cast<Address> (Ipv6Address ()));
-      size++;
-    }
-
-  msg->SetMapRequestRecord (MapRequestRecord::Deserialize (buf + size));
   return msg;
 }
 
@@ -474,11 +401,11 @@ void MapRequestMsg::Print (std::ostream& os) const
 {
   os << "A " << unsigned(m_A) << " " << "M " << unsigned(m_M) << " " << "P "
      << unsigned(m_P) << " " << "S " << unsigned(m_S) << " " << "p "
-     << unsigned(m_p) << " " << "s " << unsigned(m_s) << " " << "IRC "
-     << unsigned(m_irc) << " " << "Record Count "
-     << unsigned(m_recordCount) << " " << "Nonce " << unsigned(m_nonce)
-     << " " << "EID AFI " << unsigned(static_cast<int> (m_sourceEidAfi))
-     << " ";
+     << unsigned(m_p) << " " << "s " << unsigned(m_s) << " " << "I "
+     << unsigned(m_I) << " " << "IRC " << unsigned(m_irc) << " "
+     << "Record Count " << unsigned(m_recordCount) << " " << "Nonce "
+     << unsigned(m_nonce) << " " << "EID AFI "
+     << unsigned(static_cast<int> (m_sourceEidAfi)) << " ";
 
   if (m_sourceEidAfi == LispControlMsg::IP)
     {
@@ -504,6 +431,9 @@ void MapRequestMsg::Print (std::ostream& os) const
 
   os << "\nRequest Record ";
   m_mapReqRec->Print (os);
+
+  os << "\nxTR-ID " << unsigned(m_xtrId);
+  os << "\nSite-ID " << unsigned(m_siteId);
 }
 
 LispControlMsg::LispControlMsgType MapRequestMsg::GetMsgType (void)

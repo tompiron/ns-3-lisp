@@ -28,6 +28,8 @@
 
 namespace ns3 {
 
+typedef unsigned __int128 uint128_t;
+
 class MapRequestMsg : public LispControlMsg
 {
 public:
@@ -60,6 +62,19 @@ public:
   void SetS2 (uint8_t s);
   uint8_t GetS2 (void);
 
+  /*
+   * \param i Value to be set for the xTR-ID bit.
+   *
+   * Set the xTR-ID bit to the given value.
+   */
+  void SetI (uint8_t i);
+  /*
+   * \returns The value of the xTR-ID bit.
+   *
+   * Get the value of the xTR-ID bit.
+   */
+  uint8_t GetI (void) const;
+
   void SetIrc (uint8_t irc);
   uint8_t GetIrc (void);
 
@@ -84,11 +99,34 @@ public:
   void SetMapRequestRecord (Ptr<MapRequestRecord> record);
   Ptr<MapRequestRecord> GetMapRequestRecord (void);
 
+  /*
+   * \param xtrId Value of the xTR-ID.
+   *
+   * Set the xTR-ID field to the given value.
+   */
+  void SetXtrId (uint128_t xtrId);
+  /*
+   * \returns The value of the xTR-ID field.
+   *
+   * Get the value of the xTR-ID field.
+   */
+  uint128_t GetXtrId (void) const;
+
+  /*
+   * \param siteId Value of the Site-ID.
+   *
+   * Set the Site-ID field to the given value.
+   */
+  void SetSiteId (uint64_t siteId);
+  /*
+   * \returns The value of the Site-ID field.
+   *
+   * Get the value of the Site-ID field.
+   */
+  uint64_t GetSiteId (void) const;
+
   void Serialize (uint8_t *buf) const;
-  void SerializeOld (uint8_t *buf) const;
   static Ptr<MapRequestMsg> Deserialize (uint8_t *buf);
-  static Ptr<MapRequestMsg> DeserializeOld (uint8_t *buf);
-  //static Ptr<MapRequestMsg> DeserializeOld (uint8_t *buf);
 
   void Print (std::ostream& os) const;
   static LispControlMsg::LispControlMsgType GetMsgType (void);
@@ -101,7 +139,8 @@ private:
   uint8_t m_S : 1; //!< Sollicit map request bit (smr bit)
   uint8_t m_p : 1; //!< P-ITR bit, set when a p-ITR sends a map request
   uint8_t m_s : 1; //!< SMR-invoked bit.
-  uint8_t m_reserved : 2;
+  uint8_t m_reserved : 1;
+  uint8_t m_I : 1; //!< xTR-ID bit, if set xTR-ID included.
   /**
    * IRC:  This 5-bit field is the ITR-RLOC Count, which encodes the
       additional number of ('ITR-RLOC-AFI', 'ITR-RLOC Address') fields
@@ -140,7 +179,12 @@ private:
    * see rfc6830 sec 6.1.2 Map-Request Message Format
    * placeholder: if we need it someday we can use it
    */
-  Ptr<MapReplyRecord> mapRepRec;
+  Ptr<MapReplyRecord> m_mapRepRec;
+
+  // The xTR-ID field. see draft-ietf-lisp-pubsub
+  uint128_t m_xtrId;
+  // The site-ID field. see draft-ietf-lisp-pubsub
+  uint64_t m_siteId;
 };
 
 } /* namespace ns3 */

@@ -55,8 +55,6 @@ public:
   virtual
   ~LispEtrItrApplication ();
 
-  static Ptr<RandomVariableStream> GetRttModel (void);
-
   void SetMapServerAddresses (std::list<Address> mapServerAddress);
   //TODO: implement this getter. useful for DHCP
   std::list<Address> GetMapServerAddresses (std::list<Address> mapServerAddress);
@@ -84,6 +82,8 @@ public:
    * As a first step, we send SMR to all xTRs in the cache.
    */
   void SendSmrMsg (void);
+
+  void SendSmrMsgForEID (Ptr<EndpointId> eid);
 
   /**
    * \brief After reception of a SMR by a xTR, send an invoked-SMR(i.e. Map Request Message with S and s bit set as 1)
@@ -182,7 +182,7 @@ private:
 
   std::set<Address> m_remoteItrCache; //!< Records all (P)ITRs that send MapRequests to LISP device
 
-  Ptr<RandomVariableStream> m_rttVariable; //!< RV representing the distribution of RTTs between xTRs
+  Ptr<RandomVariableStream> m_xtrToMapServerDelayVariable, m_xtrToXtrDelayVariable;
 
   Ptr<Socket> m_lispMappingSocket; //Socket for communication with dataplane
   Ptr<Socket> m_socket; // emeline: Socket for communication with MS (MapRegister) and MR (MapRequest)
@@ -196,11 +196,14 @@ private:
   EventId m_event;
   uint16_t m_peerPort; // Port of MS
   uint32_t m_seed;
+  bool m_registerProxyMode;
+  bool m_enableSubscribe;
 
   /// Callbacks for tracing the MapRegister Tx events
   TracedCallback<Ptr<const Packet> > m_mapRegisterTxTrace;
   /// Callbacks for tracing the MapNotify Rx events
   TracedCallback<Ptr<const Packet> > m_mapNotifyRxTrace;
+  TracedCallback<Ptr<const Packet> > m_mappingUpdateTrace;
 
 };
 

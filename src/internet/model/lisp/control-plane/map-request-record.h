@@ -25,6 +25,19 @@ public:
   virtual
   ~MapRequestRecord ();
 
+  /*
+   * \returns Value of the Notification Requested bit.
+   *
+   * Get the value of the Notification Requested bit. see draft-ietf-lisp-pubsub
+   */
+  uint8_t GetN (void) const;
+  /*
+   * \param n Value of the Notification Requested bit.
+   *
+   * Set the value of the Notification Requested bit. see draft-ietf-lisp-pubsub
+   */
+  void SetN (uint8_t n);
+
   LispControlMsg::AddressFamily GetAfi (void);
   void SetAfi (LispControlMsg::AddressFamily afi);
 
@@ -34,13 +47,20 @@ public:
   void SetEidPrefix (Address prefix);
   Address GetEidPrefix (void);
 
+  /*
+   * \returns The size of the serialized record in bytes.
+   *
+   * Get the size of the records once serialized (in bytes).
+   */
+  uint8_t GetSizeInBytes (void) const;
+
   void Serialize (uint8_t *buf) const;
-  void SerializeOld (uint8_t *buf);
   static Ptr<MapRequestRecord> Deserialize (uint8_t *buf);
-  static Ptr<MapRequestRecord> DeserializeOld (uint8_t *buf);
 
   void Print (std::ostream& os);
 private:
+  // Notification Requested bit, see draft-ietf-lisp-pubsub.
+  uint8_t m_N : 1;
   LispControlMsg::AddressFamily m_afi;
   uint8_t m_eidMaskLenght;
   Address m_eidPrefix;

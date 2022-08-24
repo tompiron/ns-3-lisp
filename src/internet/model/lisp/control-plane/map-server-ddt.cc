@@ -30,6 +30,7 @@
 #include "ns3/trace-source-accessor.h"
 #include "map-register-msg.h"
 #include "map-resolver.h"
+#include "subscribe-list.h"
 
 namespace ns3 {
 NS_LOG_COMPONENT_DEFINE ("MapServerDdt");
@@ -46,28 +47,6 @@ MapServerDdt::GetTypeId (void)
   return tid;
 }
 
-
-Ptr<RandomVariableStream>
-MapServerDdt::GetMdsModel (void)
-{
-  Ptr<EmpiricalRandomVariable> mds = CreateObject<EmpiricalRandomVariable> ();
-  mds->CDF ( 0.0,  0.0);
-  mds->CDF ( 0.05,  0.1);
-  mds->CDF ( 0.10,  0.2);
-  mds->CDF ( 0.12,  0.3);
-  mds->CDF ( 0.18,  0.4);
-  mds->CDF ( 0.20,  0.5);
-  mds->CDF ( 0.23,  0.6);
-  mds->CDF ( 0.26,  0.7);
-  mds->CDF ( 0.30,  0.8);
-  mds->CDF ( 0.50,  0.9);
-  mds->CDF ( 1.0, 0.98);
-  mds->CDF ( 1.5, 0.999);
-  mds->CDF (2.0,  1.0);
-
-  return mds;
-}
-
 MapServerDdt::MapServerDdt ()
 {
   /**
@@ -75,6 +54,8 @@ MapServerDdt::MapServerDdt ()
    */
   m_mapTablesv4 = Create<SimpleMapTables> ();
   m_mapTablesv6 = Create<SimpleMapTables> ();
+
+  m_subscribeList = Create<SubscribeList>();
 }
 
 MapServerDdt::~MapServerDdt ()
@@ -269,6 +250,48 @@ MapServerDdt::PopulateDatabase (Ptr<MapRegisterMsg> msg)
     }
 }
 
+Ptr<MapReplyMsg>
+GenerateMapReply (Ptr<MapRequestMsg> requestMsg, Ptr<MapEntry> entry)
+{
+  Ptr<MapReplyMsg> mapReply = Create<MapReplyMsg>();
+  Ptr<MapRequestRecord> record = requestMsg->GetMapRequestRecord ();
+  Ptr<MapReplyRecord> replyRecord = Create<MapReplyRecord>();
+
+  mapReply->SetNonce (requestMsg->GetNonce ());
+  mapReply->SetRecordCount (1);
+  replyRecord->SetAct (MapReplyRecord::NoAction);
+  replyRecord->SetA (0);
+  replyRecord->SetMapVersionNumber (entry->GetVersionNumber ());
+  replyRecord->SetRecordTtl (MapReplyRecord::m_defaultRecordTtl);
+  replyRecord->SetEidPrefix (entry->GetEidPrefix ()->GetEidAddress ());
+  replyRecord->SetEidMaskLength (entry->GetEidPrefix ()->GetMaskLength ());
+  replyRecord->SetLocators (entry->GetLocators ());
+
+  mapReply->SetRecord (replyRecord);
+  NS_LOG_DEBUG ("MAP REPLY READY, Its content is as follows:\n" << *mapReply);
+  return mapReply;
+}
+
+Ptr<MapNotifyMsg>
+GenerateMapNotify (uint16_t nounce, Ptr<MapEntry> entry)
+{
+  Ptr<MapNotifyMsg> mapNotify = Create<MapNotifyMsg>();
+  Ptr<MapReplyRecord> replyRecord = Create<MapReplyRecord>();
+
+  mapNotify->SetNonce (nounce);
+  mapNotify->SetRecordCount (1);
+  replyRecord->SetAct (MapReplyRecord::NoAction);
+  replyRecord->SetA (0);
+  replyRecord->SetMapVersionNumber (entry->GetVersionNumber ());
+  replyRecord->SetRecordTtl (MapReplyRecord::m_defaultRecordTtl);
+  replyRecord->SetEidPrefix (entry->GetEidPrefix ()->GetEidAddress ());
+  replyRecord->SetEidMaskLength (entry->GetEidPrefix ()->GetMaskLength ());
+  replyRecord->SetLocators (entry->GetLocators ());
+
+  mapNotify->SetRecord (replyRecord);
+  return mapNotify;
+}
+
 void
 MapServerDdt::HandleReadFromClient (Ptr<Socket> socket)
 {
@@ -287,6 +310,18 @@ MapServerDdt::HandleReadFromClient (Ptr<Socket> socket)
       if (msg_type == static_cast<uint8_t> (MapRegisterMsg::GetMsgType ()))
         {
           Ptr<MapRegisterMsg> msg = MapRegisterMsg::Deserialize (buf);
+          Ptr<MapReplyRecord> record = msg->GetRecord ();
+          Ptr<MapEntry> oldEntry;
+          if (record->GetEidAfi () == LispControlMsg::IP)
+            {
+              oldEntry = m_mapTablesv4->DatabaseLookup (
+                record->GetEidPrefix ());
+            }
+          else if (record->GetEidAfi () == LispControlMsg::IPV6)
+            {
+              oldEntry = m_mapTablesv6->DatabaseLookup (
+                record->GetEidPrefix ());
+            }
           MapServerDdt::PopulateDatabase (msg);
           // check if map register needs a map notification message...
           if (msg->GetM () == 1)
@@ -294,7 +329,6 @@ MapServerDdt::HandleReadFromClient (Ptr<Socket> socket)
               // Actually, the following code is almost the same with that using to determine map-request's RLOC
               // how to refactor these two blocs of code?
               Ptr<MapNotifyMsg> mapNotifyMsg = GenerateMapNotifyMsg (msg);
-              Ptr<MapReplyRecord> record = msg->GetRecord ();
               Ptr<MapEntry> entry;
               if (record->GetEidAfi () == LispControlMsg::IP)
                 {
@@ -316,9 +350,48 @@ MapServerDdt::HandleReadFromClient (Ptr<Socket> socket)
               uint8_t buf[256];
               mapNotifyMsg->Serialize (buf);
               Ptr<Packet> packet = Create<Packet> (buf, 256);
-              SendTo (locator->GetRlocAddress (), m_peerPort, packet);
+              Simulator::Schedule (Seconds (m_mapServerToXtrDelayVariable->GetValue ()), &MapServerDdt::SendTo, this,
+                                   locator->GetRlocAddress (), m_peerPort, packet);
               NS_LOG_DEBUG (
                 "Map Register message M bit is 1=> A Map notify message has been sent back");
+            }
+          if (msg->GetP ())
+            {
+              Ptr<MapReplyRecord> record = msg->GetRecord ();
+              Ptr<MapEntry> entry;
+              if (record->GetEidAfi () == LispControlMsg::IP)
+                {
+                  entry = m_mapTablesv4->DatabaseLookup (
+                    record->GetEidPrefix ());
+                }
+              else if (record->GetEidAfi () == LispControlMsg::IPV6)
+                {
+                  entry = m_mapTablesv6->DatabaseLookup (
+                    record->GetEidPrefix ());
+                }
+              entry->SetProxyMode (true);
+              if (oldEntry == 0)
+                {
+                  NS_LOG_DEBUG ("Create entry in proxy mode.");
+                  m_subscribeList->CreateEntry (record->GetEidPrefix ());
+                }
+              else
+                {
+                  NS_LOG_DEBUG ("Updated entry in proxy mode.");
+                  Ptr<SubscribeEntry> subscribeEntry = m_subscribeList->GetEntry (record->GetEidPrefix ());
+                  auto subscribers = subscribeEntry->GetSubscribers ();
+                  for (auto iter = subscribers.begin (); iter != subscribers.end (); iter++)
+                    {
+                      Locator subscriber = *iter;
+                      NS_LOG_DEBUG ("Sending to '" << Ipv4Address::ConvertFrom (subscriber.GetRlocAddress ()) << "'.");
+                      Ptr<MapNotifyMsg> mapNotify = GenerateMapNotify (0, entry);
+                      uint8_t newBuf[256];
+                      mapNotify->Serialize (newBuf);
+                      Ptr<Packet> reactedPacket = Create<Packet> (newBuf, 256);
+                      Simulator::Schedule (Seconds (m_mapServerToXtrDelayVariable->GetValue ()), &MapServerDdt::SendTo,
+                                           this, subscriber.GetRlocAddress (), m_peerPort, reactedPacket);
+                    }
+                }
             }
         }
       else if (msg_type
@@ -344,16 +417,60 @@ MapServerDdt::HandleReadFromClient (Ptr<Socket> socket)
               uint8_t newBuf[256];
               mapReply->Serialize (newBuf);
               Ptr<Packet> reactedPacket = Create<Packet> (newBuf, 256);
-              Simulator::Schedule (Seconds (m_searchTimeVariable->GetValue ()), &MapServerDdt::SendTo,
+              Simulator::Schedule (Seconds (m_mappingSystemRttVariable->GetValue ()), &MapServerDdt::SendTo,
                                    this, requestMsg->GetItrRlocAddrIp (), m_peerPort, reactedPacket);
             }
           else
             {
-              Ptr<Locator> locator = entry->GetLocators ()->SelectFirsValidRloc ();
-              NS_LOG_DEBUG ("Forward Map-Request to ETR " << Ipv4Address::ConvertFrom (locator->GetRlocAddress ()));
-              Ptr<Packet> reqPacket = Create<Packet> (buf, packet->GetSize ());
-              Simulator::Schedule (Seconds (m_searchTimeVariable->GetValue ()), &MapServerDdt::SendTo,
-                                       this, locator->GetRlocAddress (), m_peerPort, reqPacket);
+              if (entry->IsProxyMode ())
+                {
+                  uint8_t newBuf[256];
+                  Address destination;
+
+                  if (requestMsg->GetI () && record->GetN ())
+                    {
+                      Ptr<SubscribeEntry> subscribeEntry = m_subscribeList->GetEntry (record->GetEidPrefix ());
+                      if (subscribeEntry != nullptr)
+                        {
+                          if (Ipv4Address::ConvertFrom (requestMsg->GetItrRlocAddrIp ()).IsEqual (Ipv4Address::GetZero ()))
+                            {
+                              subscribeEntry->RemoveSubscriber (requestMsg->GetXtrId (), requestMsg->GetSiteId ());
+                              destination = from;
+                            }
+                          else
+                            {
+                              subscribeEntry->AddSubscriber (Locator (requestMsg->GetItrRlocAddrIp ()), requestMsg->GetXtrId (), requestMsg->GetSiteId ());
+                              destination = requestMsg->GetItrRlocAddrIp ();
+                            }
+                          Ptr<MapNotifyMsg> mapNotify = GenerateMapNotify (requestMsg->GetNonce (), entry);
+                          mapNotify->Serialize (newBuf);
+                        }
+                      else
+                        {
+                          destination = requestMsg->GetItrRlocAddrIp ();
+                          Ptr<MapReplyMsg> mapReply = GenerateMapReply (requestMsg, entry);
+                          mapReply->Serialize (newBuf);
+                        }
+                    }
+                  else
+                    {
+                      destination = requestMsg->GetItrRlocAddrIp ();
+                      Ptr<MapReplyMsg> mapReply = GenerateMapReply (requestMsg, entry);
+                      mapReply->Serialize (newBuf);
+                    }
+                  Ptr<Packet> reactedPacket = Create<Packet> (newBuf, 256);
+                  Simulator::Schedule (Seconds (m_mappingSystemRttVariable->GetValue ()), &MapServerDdt::SendTo,
+                                       this, destination, m_peerPort, reactedPacket);
+                }
+              else
+                {
+                  Ptr<Locator> locator = entry->GetLocators ()->SelectFirsValidRloc ();
+                  NS_LOG_DEBUG ("Forward Map-Request to ETR " << Ipv4Address::ConvertFrom (locator->GetRlocAddress ()));
+                  Ptr<Packet> reqPacket = Create<Packet> (buf,
+                                                          packet->GetSize ());
+                  Simulator::Schedule (Seconds (m_mappingSystemRttVariable->GetValue ()), &MapServerDdt::SendTo, this,
+                                       locator->GetRlocAddress (), m_peerPort, reqPacket);
+                }
             }
         }
       else if (msg_type

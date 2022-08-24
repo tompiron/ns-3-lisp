@@ -53,6 +53,21 @@ public:
   Ptr<Locator> GetXtrLloc (void) const;
 
   bool IsNatedEntry (void) const;
+  /*
+   * \returns True, if the entry was registered with the proxy bit. False, otherwise.
+   *
+   * If this entry is on a map server, return true if the map server should reply directly
+   * to a request for this entry. Return false, if it should forward it to the ETR.
+   * Return an undefined value when not on a map server.
+   */
+  bool IsProxyMode (void) const;
+  /*
+   * \param True to enable proxy mode, False to disable it.
+   *
+   * If this entry is on a map server, should be set to true if the Register message
+   * had the proxy (P) bit set.
+   */
+  void SetProxyMode (bool value);
 
   uint32_t GetTTL ();
   uint32_t ReduceTTL ();
@@ -81,6 +96,7 @@ private:
   bool m_isNegative;
   bool m_useVersioning;
   bool m_useLocatorStatusBits;
+  bool m_proxyMode;
   uint32_t m_ttl;
 
   uint16_t m_mappingVersionNumber; // Version number of the mapping

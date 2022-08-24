@@ -282,6 +282,8 @@ def build(bld):
         'model/ipv4-netfilter.cc',
         # NAT helper
         'helper/ipv4-nat-helper.cc',
+        # PubSub
+        'model/lisp/control-plane/subscribe-list.cc'
         ]
 
     internet_test = bld.create_ns3_module_test_library('internet')
@@ -535,6 +537,8 @@ def build(bld):
         'model/ipv4-netfilter.h',
         # NAT helper
         'helper/ipv4-nat-helper.h',
+        # PubSub
+        'model/lisp/control-plane/subscribe-list.h'
        ]
 
     if bld.env['NSC_ENABLED']:

@@ -28,6 +28,16 @@ MapRequestRecord::~MapRequestRecord ()
 
 }
 
+uint8_t MapRequestRecord::GetN (void) const
+{
+  return m_N;
+}
+
+void MapRequestRecord::SetN (uint8_t n)
+{
+  m_N = n;
+}
+
 LispControlMsg::AddressFamily MapRequestRecord::GetAfi (void)
 {
   return m_afi;
@@ -55,15 +65,30 @@ Address MapRequestRecord::GetEidPrefix (void)
   return m_eidPrefix;
 }
 
+uint8_t MapRequestRecord::GetSizeInBytes (void) const
+{
+  uint8_t size = 4; // Flags + Mask length + AFI
+  if (m_afi == LispControlMsg::IP)
+    {
+      size += 4;
+    }
+  else
+    {
+      size += 16;
+    }
+  return size;
+}
+
 void MapRequestRecord::Serialize (uint8_t *buf) const
 {
-  // First byte for reserved field
   int position = 0;
-  buf[position] = 0x00;
+  buf[position] = 0 | (m_N << 7);
   position += 1;
+
   // EID mask len
   buf[position] = m_eidMaskLenght;
   position += 1;
+
   // 3,4th byte for EID-Prefix-AFI
   buf[position] = 0x00;
   position += 1;
@@ -79,19 +104,11 @@ void MapRequestRecord::Serialize (uint8_t *buf) const
     }
 }
 
-//void MapRequestRecord::SerializeOld(uint8_t *buf) const {
-//	buf[0] = static_cast<uint8_t>(m_afi);
-//	buf[1] = m_eidMaskLenght;
-//	if (m_afi == LispControlMsg::IP) {
-//		Ipv4Address::ConvertFrom(m_eidPrefix).Serialize(buf + 2);
-//	} else
-//		Ipv6Address::ConvertFrom(m_eidPrefix).Serialize(buf + 2);
-//}
-
 Ptr<MapRequestRecord> MapRequestRecord::Deserialize (uint8_t *buf)
 {
   Ptr<MapRequestRecord> record = Create<MapRequestRecord>();
   int position = 0;
+  record->SetN ((buf[0] >> 7) & 0x01);
   record->SetAfi (static_cast<LispControlMsg::AddressFamily> (buf[3]));
   record->SetMaskLenght (buf[1]);
   position = 4;
@@ -108,25 +125,11 @@ Ptr<MapRequestRecord> MapRequestRecord::Deserialize (uint8_t *buf)
   return record;
 }
 
-//Ptr<MapRequestRecord> MapRequestRecord::Deserialize(uint8_t *buf) {
-//	Ptr<MapRequestRecord> record = Create<MapRequestRecord>();
-//
-//	record->SetAfi(static_cast<LispControlMsg::AddressFamily>(buf[0]));
-//	record->SetMaskLenght(buf[1]);
-//
-//	if (record->GetAfi() == LispControlMsg::IP)
-//		record->SetEidPrefix(
-//				static_cast<Address>(Ipv4Address::Deserialize(buf + 2)));
-//	else
-//		record->SetEidPrefix(
-//				static_cast<Address>(Ipv6Address::Deserialize(buf + 2)));
-//	return record;
-//}
-
 void MapRequestRecord::Print (std::ostream& os)
 {
 
-  os << "EID PREFIX AFI " << unsigned(static_cast<int> (m_afi)) << " "
+  os << "N " << unsigned(m_N) << " "
+     << "EID PREFIX AFI " << unsigned(static_cast<int> (m_afi)) << " "
      << "Mask Length " << unsigned(m_eidMaskLenght);
   if (m_afi == LispControlMsg::IP)
     {

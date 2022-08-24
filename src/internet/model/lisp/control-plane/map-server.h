@@ -60,7 +60,7 @@ protected:
 
   Address m_rtrAddress; // Address of an RTR
 
-  Ptr<RandomVariableStream> m_searchTimeVariable;
+  Ptr<RandomVariableStream> m_mappingSystemRttVariable, m_mapServerToXtrDelayVariable;
 
 private:
   virtual void StartApplication (void);

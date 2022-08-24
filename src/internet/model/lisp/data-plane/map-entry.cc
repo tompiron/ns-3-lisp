@@ -25,6 +25,7 @@ MapEntry::MapEntry ()
   m_isNegative = 0;
   m_isExpired = 0;
   m_port = 0;
+  m_proxyMode = 0;
   m_ttl = 0;
 }
 
@@ -142,6 +143,16 @@ bool
 MapEntry::IsNatedEntry (void) const
 {
   return m_port != 0;
+}
+
+bool MapEntry::IsProxyMode (void) const
+{
+  return m_proxyMode;
+}
+
+void MapEntry::SetProxyMode (bool value)
+{
+  m_proxyMode = value;
 }
 
 uint32_t MapEntry::GetTTL ()
