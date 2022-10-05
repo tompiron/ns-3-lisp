@@ -4,7 +4,7 @@ This repository contains a copy of the ns-3.27 source code, more information can
 This is a fork of E. Marechal's work that can be found [here](https://github.com/Emeline-1/ns-3_LISP_NAT).
 
 We added capabilities to the simulator in order to run simulations with the Publish/Subscribe extension of LISP.
-A link toward the thesis linked to this work will be available soon.
+The thesis linked to this work is available [here](http://hdl.handle.net/2268.2/16125).
 
 ## Installation steps (Linux)
 
